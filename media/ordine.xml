@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<EasyfattDocuments AppVersion="2" Creator="Danea Soft" CreatorUrl="www.danea.it">
+  <Company>
+    <Name>Arredufficio Srl</Name>
+    <Address>Via Crissolo, 12</Address>
+    <Postcode>10138</Postcode>
+    <City>Torino</City>
+    <Province>TO</Province>
+    <Country>Italia</Country>
+    <FiscalCode>01303760282</FiscalCode>
+    <VatCode>01303760282</VatCode>
+    <Tel>011-2568745</Tel>
+    <Fax>011-2548793</Fax>
+    <Email>arredufficiosrl@arredufficio.it</Email>
+    <HomePage>www.arredufficiosrl.it</HomePage>
+  </Company>
+  <Documents>
+    <Document>
+      <DocumentType>C</DocumentType>
+      <CustomerCode>0018</CustomerCode>
+      <CustomerName>Ceramiche Italiane</CustomerName>
+      <CustomerAddress>Via Flaminia, 963</CustomerAddress>
+      <CustomerPostcode>06061</CustomerPostcode>
+      <CustomerCity>Castiglione Del Lago</CustomerCity>
+      <CustomerProvince>PG</CustomerProvince>
+      <CustomerCountry>Italia</CustomerCountry>
+      <CustomerVatCode>03322350178</CustomerVatCode>
+      <CustomerTel>075-26589</CustomerTel>
+      <CustomerEmail>italianceramiche@ceramiche.it</CustomerEmail>
+      <Date>2010-03-23</Date>
+      <Number>2</Number>
+      <Total>239.4</Total>
+      <PaymentName>Bonifico bancario</PaymentName>
+      <PaymentBank>Banca Antoniana Popolare Veneta ag. Torino 5 - abi 5040 cab 42970 c/c 16243/x</PaymentBank>
+      <InternalComment>Nessun Acconto</InternalComment>
+      <CustomField2>08/04/2010</CustomField2>
+      <SalesAgent>Arturo Lupini</SalesAgent>
+      <Rows>
+        <Row>
+          <Code>0043</Code>
+          <Description>Appendiabiti su ruote. In robusto metallo verniciato dotato di griglia portascarpe in filo metallico.</Description>
+          <Qty>1</Qty>
+          <Um>pz</Um>
+          <Price>162</Price>
+          <Discounts>5%</Discounts>
+          <VatCode Perc="20" Class="Imponibile" Description="Aliquota 20%">20</VatCode>
+          <Notes>vedi preventivo</Notes>
+        </Row>
+        <Row>
+          <Code>0039</Code>
+          <Description>Cestini Gettacarta - Pareti in acciaio laminato nero o acciaio</Description>
+          <Qty>3</Qty>
+          <Um>pz</Um>
+          <Price>16</Price>
+          <Discounts>5%</Discounts>
+          <VatCode Perc="20" Class="Imponibile" Description="Aliquota 20%">20</VatCode>
+          <Notes></Notes>
+        </Row>
+      </Rows>
+      <Payments>
+        <Payment>
+         <Advance>false</Advance>
+         <Date>2010-01-31</Date>
+         <Amount>100</Amount>
+         <Paid>true</Paid>
+        </Payment>
+        <Payment>
+          <Advance>false</Advance>
+          <Date>2010-02-28</Date>
+          <Amount>139.4</Amount>
+          <Paid>false</Paid>
+        </Payment>
+      </Payments>
+    </Document>
+  </Documents>
+</EasyfattDocuments>

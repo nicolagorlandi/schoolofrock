@@ -1,0 +1,132 @@
+{% extends 'partials/base.html' %}
+
+
+ <!-- Serve per caricare li js per la gestione della lettura del prezzo e della descrizione dell'articolo -->  
+{% load static %}
+{% load bootstrap %}
+{% load i18n %}
+
+{% block js %}
+  <link href="{% static 'admin/css/vendor/select2/select2.css' %}" rel="stylesheet">  
+  <link href="{% static 'css/select2-bootstrap.css' %}" rel="stylesheet">
+  <link href="{% static 'admin/css/autocomplete.css' %}" rel="stylesheet">
+  <link href="{% static 'autocomplete_light/select2.css' %}" rel="stylesheet">
+
+  <script type="text/javascript" src="{% static 'admin/js/vendor/select2/select2.full.js' %}"></script>
+  <script type="text/javascript" src="{% static 'autocomplete_light/autocomplete_light.js' %}"></script>
+  <script type="text/javascript" src="{% static 'autocomplete_light/select2.js' %}"></script>
+  <script type="text/javascript" src="{% static 'autocomplete_light/i18n/en.js' %}"></script>
+<style> 
+   input[type=checkbox] { 
+       width: 20px; 
+       height: 20px; 
+   } 
+</style> 
+{% endblock %}
+
+{% block main %}
+
+  <form method="post" novalidate="">
+    {% csrf_token %}
+    <h1 class="h2">{{causaleSelezionata.CDDESCRI}}</h1> 
+{{ form.non_field_errors }}
+
+{% for hidden_field in form.hidden_fields %}
+{{ hidden_field.errors }}
+{{ hidden_field }}
+{% endfor %}            
+<div class=".container-fluid">   
+    <div class="row">
+        <div class="col-1">
+            {{ form.DONUMORD|bootstrap }} 
+        </div>   
+        <div class="col-1">
+            {{ form.DOALFORD|bootstrap }}
+        </div>                           
+        <div class="col-2">
+            {{ form.DODATORD|bootstrap }}
+        </div>                                              
+        <div class="col-4">
+            {{ form.DOCODINT|bootstrap }}
+        </div>
+        <div class="col-4">            
+            {{ form.DONOTE|bootstrap }}
+        </div>         
+    </div>
+    <div class="row">
+        <div class="col-2">
+            {{ form.DOCODUTE|bootstrap }}
+        </div>   
+        <div class="col-4">
+            {{ form.DOCODCAU|bootstrap }}
+        </div>     
+        <div class="col-2">
+            {{ form.SYNC_UPDATE|bootstrap }}
+        </div>    
+        {% if perms.documenti.Manager_Ordini and DocumentoEvaso == False %} 
+        <div class="col-1 p-4">
+            <button  type="submit" name="Close" class="btn btn-warning">{% trans "Conferma" %}</button>
+        </div>
+        <div class="col-1 p-4"> 
+            <a type="cancel"  href="{% url 'documenti' causaleSelezionata.CDCODICE %}" class="btn btn-secondary">{% trans "Annulla" %}</a>            
+        </div>  
+        <div class="col-2 p-4"> 
+        </div>    
+        {% else %}              
+        <div class="col-1 p-4">
+            <a class="btn btn-info " href="{% url 'documenti' causaleSelezionata.CDCODICE %}" role="button">{% trans "Elenco" %} {{causaleSelezionata.CDDESCRI}}</a>  
+        </div>
+        <div class="col-3 p-4"> 
+        </div> 
+        {% endif %} 
+             
+    </div>
+
+
+<div class="row">
+    <div class="table-responsive">
+        <table class="table table-hover table-striped table-sm">
+            <thead>
+                <tr>                
+                <th scope="col">{% trans "Articolo" %} </th>
+                <th scope="col" class="text-end">{% trans "Quantità" %} </th>                
+                <th scope="col" class="text-end">{% trans "Prezzo" %}</th>
+                <th scope="col">{% trans "Descrizione" %}</th>                
+                <th scope="col">{% trans "Descrizione Supplementare" %} </th>    
+                <th scope="col" ></th>             
+                <th scope="col" class="text-end">{% trans "Elimina" %} </th>                              
+                </tr>
+            </thead>
+            {{ view.formset.management_form }}          
+            <tbody>
+                {% for form in view.formset %}   
+                    <tr>
+                        {% for field in form %}                    
+                            <td>{{ field}}</td>
+                        {% endfor %}
+                    </tr>                        
+                {% endfor %}
+
+                <tr style="display: none">
+                    {% for field in view.formset.empty_form %}                    
+                        <td>{{ field}}</td>
+                    {% endfor %}
+                </tr>       
+            </tbody>
+        </table>  
+    </div>                      
+</div>  
+<div class="row col-2">
+    <span id="add-form" class="btn btn-primary">{% trans "Aggiungi Articolo" %}</span>
+</div> 
+</div>
+</form>
+
+{% endblock %}
+
+{% block custom_js %}
+
+<script src="{% static 'documenti/js/order_edit.js' %}"></script>
+
+{% endblock %}   
+

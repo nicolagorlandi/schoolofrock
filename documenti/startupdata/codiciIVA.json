@@ -1,0 +1,86 @@
+[
+	{
+		"CICODICE" : "10",
+		"CIDESCRI" : "Iva 10%",
+		"CIPERIVA" : 10.00,
+		"slug" : "10"
+	},
+	{
+		"CICODICE" : "20",
+		"CIDESCRI" : "Iva 20%",
+		"CIPERIVA" : 20.00,
+		"slug" : "20"
+	},
+	{
+		"CICODICE" : "21",
+		"CIDESCRI" : "Iva 21%",
+		"CIPERIVA" : 21.00,
+		"slug" : "21"
+	},
+	{
+		"CICODICE" : "22",
+		"CIDESCRI" : "Iva 22%",
+		"CIPERIVA" : 22.00,
+		"slug" : "22"
+	},
+	{
+		"CICODICE" : "ESA10",
+		"CIDESCRI" : "Esente Art.10 DPR 633/72",
+		"CIPERIVA" : 0.00,
+		"slug" : "ESA10"
+	},
+	{
+		"CICODICE" : "ESC15",
+		"CIDESCRI" : "Escluso Art. 15",
+		"CIPERIVA" : 0.00,
+		"slug" : "ESC15"
+	},
+	{
+		"CICODICE" : "ESTIM",
+		"CIDESCRI" : "Iva assolta a monte da Tim p.i.00488410010(ex Art.74 II comma 1,DPR 26 Ottobre 1972 n.633)",
+		"CIPERIVA" : 0.00,
+		"slug" : "ESTIM"
+	},
+	{
+		"CICODICE" : "ESTRE",
+		"CIDESCRI" : "Iva assolta a monte da Tre p.i.13378520152(ex Art.74 II comma 1,DPR 26 Ottobre 1972 n.633)",
+		"CIPERIVA" : 0.00,
+		"slug" : "ESTRE"
+	},
+	{
+		"CICODICE" : "ESVOD",
+		"CIDESCRI" : "Iva assolta a monte da Vodafone p.i.08539010010(ex Art.74 II comma 1,DPR 26 Ottobre 1972 n.633)",
+		"CIPERIVA" : 0.00,
+		"slug" : "ESVOD"
+	},
+	{
+		"CICODICE" : "ESWIN",
+		"CIDESCRI" : "Iva assolta a monte da Wind p.i.05410741002(ex Art.74 II comma 1,DPR 26 Ottobre 1972 n.633)",
+		"CIPERIVA" : 0.00,
+		"slug" : "ESWIN"
+	},
+	{
+		"CICODICE" : "FCIVA",
+		"CIDESCRI" : "Fuori campo IVA(art.2 II comma e Art.74 II comma DPR 633/72",
+		"CIPERIVA" : 0.00,
+		"slug" : "FCIVA"
+	},
+	{
+		"CICODICE" : "NIA82",
+		"CIDESCRI" : "Non imponibile Articolo 8, comma 2, lettera c), D.P.R. 633/1972",
+		"CIPERIVA" : 0.00,
+		"slug" : "NIA82"
+	},
+	{
+		"CICODICE" : "NIA9",
+		"CIDESCRI" : "Non imponibile Articolo 9 D.P.R. 633/1972",
+		"CIPERIVA" : 0.00,
+		"slug" : "NIA9"
+	},
+	{
+		"CICODICE" : "RCH",
+		"CIDESCRI" : "Op. soggetta a reverse charge ex art. 17 c 6 lettera a ter, n. DPR 633/72",
+		"CIPERIVA" : 22.00,
+		"slug" : "RCH"
+	}
+]

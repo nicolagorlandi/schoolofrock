@@ -1,0 +1,118 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% load bootstrap %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+{% load my_tags %}
+
+{% block main %}
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">  
+  <h1 class="h2">{% trans "Scegli Articoli da aggiungere al carrello" %}</h1>    
+</div>  
+
+<div class="justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">        
+    <button class="btn btn-info" type="button" data-bs-toggle="collapse" data-bs-target="#pannelloRicerca" aria-expanded="true" aria-controls="pannelloRicerca">
+      {% trans "Ricerca in" %} {{descrizioneCausale}}
+      <span class="badge badge-danger">{{ filter.qs.count }}</span>
+    </button>            
+</div>
+
+  <div class="collapse" id="pannelloRicerca">
+    <div class="card card-body">
+      <div class="container-fluid -sm">
+        <form method="GET">
+          <div class="row">  
+          {% for field in filter.form %}
+          <div class="col">
+            {{ field|bootstrap }}
+          </div>  
+          {% endfor %}
+          <div class="col">      
+            <button style="margin-top: 24px;" type="submit" class="btn btn-info"><i class="fa fa-search"></i>{% trans "Ricerca" %}
+            </button>
+          </div>  
+        </div>    
+        </form>      
+        </div>    
+    </div>
+  </div>  
+
+
+
+ {% include 'documenti/_pagination.html' %}
+  <div class='row card-group gap-3'>
+        {% for articolo in articoli  %}
+          <div class="col-2">
+              <div class="card h-100">
+                {% if articolo.getimage %}
+                <img src="{{articolo.getimage}}" class="card-img-top">
+                {% else %}
+                <img class="card-img-top">
+                {% endif %}                   
+                <div class="card-body h-80">                
+                  <h5 class="card-title">{{articolo.ARCODICE}}</h5>
+                  <p class="card-text fs-6">{{articolo.ARDESCRI}}</p>                
+                    <p class="card-text">
+                    <div class="row">
+                      <div class="col-md-6">                    
+                      <h5 class="card-text">{% trans "€" %}{{articolo.ARPREZZO|floatformat:"2g"}}</h5>                    
+                      {{articolo.ARLOTMIN|floatformat:"0g"}} <div class="fa-solid fa-cubes"></div>
+                      </div>
+                      <div class="col-md-6">
+                        <input type="number" value="{% getQtyInCartFromProduct prodotto=articolo %}" min="0" class="form-control" data-value="{{ articolo.ARCODICE }}" />                                            
+                      </div>
+                    </div>              
+                    </p>                   
+                </div>
+
+                <div class="card-footer text-center">  
+                  <button type="button" class="btn btn-success fa-solid fa-cart-plus add_cart" value="{{ articolo.ARCODICE }}"></button>
+                </div>
+            </div>
+          </div>
+        {% endfor %}
+  </div>
+
+<script>
+
+$(document).on('click','.add_cart', function(e)
+  {
+    e.preventDefault();
+    $.ajax(
+      {
+        type:'POST',
+        url:"{% url 'add_to_cart'%}",
+        data:
+          {
+            arcodice:$(event.target).val(),
+            qty:$("input[data-value="+$(event.target).val()+"]")[0].value,
+            csrfmiddlewaretoken:'{{ csrf_token }}',
+            action: 'post'
+          },
+
+          success:function(json)
+          {
+            document.getElementById("cart_quantity").textContent = json.Totalqty;
+          },
+
+          error:function(hxt,errMsg,err)
+          {
+
+          },          
+
+      }
+  )
+
+
+  }
+)
+
+
+
+</script>
+
+
+
+
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% load bootstrap %}
+{% load i18n %}
+
+
+{% block js %}
+  <link href="{% static 'select2-3.4.5/select2.css' %}" rel="stylesheet">
+  <link href="{% static 'css/select2-bootstrap.css' %}" rel="stylesheet">
+  <script type="text/javascript" src="{% static 'select2-3.4.5/select2_locale_fr.js' %}"></script>
+  <script type="text/javascript" src="{% static 'select2rocks/select2rocks.js' %}"></script>
+  <script type="text/javascript" src="{% static 'js/select2rocks-backends.js' %}"></script>  
+{% endblock %}
+
+{% block main %}
+  <form method="POST" enctype="multipart/form-data"> 
+    <!-- Security token -->
+    {% csrf_token %} 
+    <h1 class="h2">{{causale.CDDESCRI}}</h1>       
+    <div class="container">
+      {% if form_nominativo %}
+      <h5>{% trans "Intestatario" %}</h5>
+      <div class="row">        
+          <div class="col-6">
+            {{ form_nominativo.NOCOGNOM|bootstrap }}
+          </div>
+          <div class="col-6">
+            {{ form_nominativo.NO_NOME|bootstrap }}
+          </div>
+      </div>          
+      <div class="row">                  
+          <div class="col-2">
+            {{ form_nominativo.NOTELEF1|bootstrap }}
+          </div>
+          <div class="col-3">
+            {{ form_nominativo.NO_EMAIL|bootstrap }}
+          </div> 
+          <div class="col-7">
+            {{ form_nominativo.NOCODICE|bootstrap }}
+          </div>             
+      </div>
+      {% endif %}      
+  
+      <div class="row">   
+        <div class="col-4">
+          <button type="submit" class="btn btn-success" name="foo" value="Submit">{% trans "Conferma " %}{{causale.CDDESCRI}}</button>
+        </div>     
+
+      </div>
+      
+      <div class="row">        
+        <div class="table-responsive">
+          <table class="table table-hover table-striped table-sm">
+            <thead>
+              <tr>
+                <th scope="col">{% trans "Quantità" %} </th>
+                <th scope="col">{% trans "Articolo" %} </th>
+                <th scope="col">{% trans "Descrizione" %}</th>
+                <th scope="col">{% trans "Prezzo" %}</th>
+                <th scope="col">{% trans "Descrizione Supplementare" %} </th>              
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Management data of formset -->
+              {{ formset.management_form }}
+              {% for form in formset %}
+              <tr>                
+                  {% for field in form %}
+                      <td>{{ field|bootstrap }}</td> 
+                  {% endfor %}
+              </tr>            
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+  
+      </div>
+    </div>
+        
+</form> 
+
+{% endblock %}

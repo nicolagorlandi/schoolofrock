@@ -1,0 +1,72 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% load bootstrap %}
+{% load i18n %}
+
+
+{% block main %}
+
+  <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <div class="btn-toolbar mb-2 mb-md-0">
+      <div class="btn-group-lg me-2">
+        {% if perms.documenti.Manager_CLienti %}
+        <!-- Se utente con il ruolo di manager articoli aggiungo la possibilità di aggiungere un articolo -->
+        <a class="btn btn-primary" href="{% url 'add_Cliente' %}" role="button">{% trans "Aggiungi Cliente" %}</a> 
+        {% endif %}            
+      </div>
+    </div>
+    <h1 class="h2">{% trans "Clienti" %}</h1>
+  </div>
+
+<div class="table-responsive">
+  <table class="table table-striped table-sm">
+    <thead>
+      <tr>        
+        {% if perms.documenti.Manager_CLienti %}
+        <th scope="col">{% trans "Azioni" %} </th> 
+        {% endif %}                       
+        <th scope="col">{% trans "Descrizione" %} </th>
+        <th scope="col">{% trans "Email" %}</th>
+        <th scope="col">{% trans "Telefono" %}</th>
+        <th scope="col">{% trans "Citta" %} </th>
+        <th scope="col">{% trans "Indirizzo" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      {% for client in Nominativi %}
+    <tr>
+      {% if perms.documenti.Manager_CLienti %}
+        <!-- Se utente con il ruolo di manager nominativi aggiungo la possibilità di eliminare o modificare un articolo -->
+        <td>
+          <div class="btn-group-lg" role="group" aria-label="{% trans "Azioni" %}">
+              <a class="btn btn-primary far fa-edit" href="{% url 'edit_Cliente' client.pk %}" role="button"></a>     
+              <a class="confirm-modal btn btn-danger fas fa-trash-alt" 
+              href="{% url 'delete_Cliente' client.pk %}" 
+              title="Delete" 
+              data-bs-toggle="modal" 
+              data-bs-target="#confirmDeleteModal" 
+              data-recordid ="{{client.pk}}" 
+              data-msgtext ="Si desidera eliminare in modo definitivo il cliente {{client}}?"
+              id="deleteButton{{client.pk}}"></a>  
+          </div>
+        </td>          
+      {% endif %}          
+      <td>{{client.NORAGSOC|default_if_none:""}}</td>
+      <td>{{client.NO_EMAIL|default_if_none:""}}</td>
+      <td>{{client.NOTELEF1|default_if_none:""}}</td>
+      <td>{{client.NO_CITTA|default_if_none:""}}</td>
+      <td>{{client.NOINDIRI|default_if_none:""}}</td>
+      <td>{{client.NOCODICE}}</td>      
+    </tr>
+      {% endfor %}
+
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
+
+{% block custom_js %}
+
+{% endblock %}

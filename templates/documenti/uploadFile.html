@@ -1,0 +1,21 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% load bootstrap %}
+{% load i18n %}
+
+
+{% block css %}
+<link href="{% static 'assets/css/bootstrap.min.css' %}" rel="stylesheet">
+{% endblock %}
+
+{% block main %}
+
+  <form class="" action="#" method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{form}}
+  <div class="col-1 p-4"> 
+      <button  type="submit" name="Close" class="btn btn-info">{% trans "Importa" %}</button>           
+  </div>    
+  </form>
+
+{% endblock %}

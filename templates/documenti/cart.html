@@ -1,0 +1,105 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% load bootstrap %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+{% load mathfilters %}
+
+{% block main %}
+
+  <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">  
+    <h1 class="h2">{% trans "Il tuo carrello" %}</h1>    
+  </div>  
+
+  <div class="justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">  
+    <a class="btn btn-info" href="{% url 'cartItemsSelection' %}">{% trans "Continua ad acquistare" %}</a>          
+    <a class="btn btn-secondary" href="{% url 'fromCartToOrder' %}">{% trans "Trasforma in Ordine" %}</a>          
+  </div> 
+
+  <div>
+    <table class="table table-hover table-responsive align-middle">
+      {% if cart_items %} 
+      {# Se carello vuoto non mostro intestazione #}
+      <thead>
+        <tr>
+          {# pulsante per eliminare dal carrello #}
+          <th scope="col"></th>
+          {# colonna per l'immagine #}          
+          <th scope="col"></th>
+          <th scope="col">{% trans "Prodotto" %}</th>
+          <th scope="col" class="text-end">{% trans "Prezzo" %}</th>
+          <th scope="col" class="text-end">{% trans "Quantità" %}</th>
+          <th scope="col" class="text-end" >{% trans "Totale" %}</th>                
+        </tr>
+      </thead>  
+      {% endif %}
+      <tbody class="table-group-divider">
+      {% if cart_items %}
+        {% for item in cart_items %}
+          <tr>          
+            <td>
+              <a class="confirm-modal btn btn-danger fas fa-trash-alt" 
+              href="{% url 'remove_from_cart' item.ARCODICE %}"                 
+              title="Delete" 
+              data-bs-toggle="modal" 
+              data-bs-target="#confirmDeleteModal" 
+              data-recordid ="delete{{item.ARCODICE}}" 
+              data-msgtext ="Vuoi cancellare questo prodotto dal carrello? {{item.ARCODICE}} ?"
+              id="deleteButton{{item.ARCODICE}}"
+              ></a>               
+
+            </td>
+            <td class="row-img" >
+              {% if item.getimage %}
+              <div class="col-5 text-center">
+              <img src="{{item.getimage}}" class="img-responsive" style="max-height:100px"  alt="...">
+              </div>
+              {% endif %}   
+            </td>
+            <td><b>{{item.ARCODICE}}</b> {{item.ARDESCRI}}</td>
+            <td class="text-end">{{item.ARPREZZO|floatformat:"2g"}}</td>          
+            <td class="text-end">
+              <select class="form-select" id="qty_cart">
+                {% for key , value in quantities.items %}   
+                  {% if key == item.ARCODICE %}
+                    <option selected>{{ value }}</option>
+                  {% endif %}
+                {% endfor %}                          
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="3">4</option>
+                <option value="3">5</option>
+                <option value="3">6</option>
+                <option value="3">7</option>
+                <option value="3">8</option>
+                <option value="3">9</option>                
+                <option value="3">10</option>                                
+              </select>            
+            </td>  
+            <td class="text-end">            
+              {% for key , value in quantities.items %}   
+                {% if key == item.ARCODICE %}             
+                  {{item.ARPREZZO|mul:value|floatformat:"2g"}}              
+                {% endif %}
+              {% endfor %} 
+            </td>                  
+          </tr>              
+        {% endfor %}            
+          
+      {% else %}
+      <tr>          
+        <td class="fs-2" colspan=6>{% trans "Il carrello è vuoto." %}</td>
+      </tr>  
+      {% endif %}
+      </tbody>
+      <tfoot>
+        <td class="text-end fs-2"" colspan=3 >{% trans "Totale" %}</td>                
+        <td class="text-end fs-2"" colspan=3 >{{ total_price|floatformat:"2g" }}</td>        
+      </tfoot>      
+    </table>
+
+  
+</div>
+
+{% endblock %}

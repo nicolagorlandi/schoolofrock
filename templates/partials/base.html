@@ -1,0 +1,175 @@
+{% load static %}
+{% load bootstrap %}
+{% load i18n %}
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    
+    <meta name="description" content="Gestione ordini">
+    <meta name="author" content="K6 di Nicola Gorlandi">
+    <title>{% trans "Gestione Ordini" %}</title>
+
+    {% block css %}
+    {% endblock %}
+
+    {% block custom_css %}
+    {% endblock %}   
+    <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}">
+    {# Per aggiustare qualche css come per la select con autocompletamento #}  
+    <link rel="stylesheet" href="{% static 'css/k6.css' %}">
+  
+    <!-- One file includes all the Font Awesome Free icons and utilities, mettere dopo bootstrap altrimenti non funziona -->
+    <link href="{% static 'fontawesomefree/css/all.min.css' %}" rel="stylesheet" type="text/css">  
+
+    <script type="text/javascript" src="{% static 'js/jquery-1.11.0.min.js' %}"></script>
+
+    <script type="text/javascript" src="{% static 'js/bootstrap.bundle.min.js' %}"></script> 
+
+  {# Per gestire il messaggio modale di conferma #}  
+  <script type="text/javascript" src="{% static 'documenti/js/confirmModalDialog.js' %}"></script>
+
+  {% block js %}
+  {% endblock %}
+
+  </head>
+
+  
+
+  <body class="p-3 m-0 border-0 bd-example m-0 border-0">
+    
+    <nav class="navbar navbar-light bg-light fixed-top">
+
+      <div class="d-inline-flex flex-row mb-2">
+        <a class="navbar-brand" href="#">{% trans "Gestione Ordini" %}</a>
+      </div>
+      
+      <div class="d-flex flex-row-reverse">
+  
+        <div class="p-2">        
+          <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasDarkNavbar" 
+            aria-controls="offcanvasDarkNavbar" 
+            aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+          </button>
+          <div class="offcanvas offcanvas-end text-bg-light" tabindex="-1" id="offcanvasDarkNavbar" aria-labelledby="offcanvasDarkNavbarLabel">
+            <div class="offcanvas-header">
+              <h5 class="offcanvas-title" id="offcanvasDarkNavbarLabel">{% trans "Gestione Ordini" %}</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body">
+              <ul class="navbar-nav justify-content-end flex-grow-1 pe-3">
+                <li class="nav-item">
+                  <a class="nav-link" href="{% url 'cartItemsSelection' %}">
+                    <span data-feather="shopping-cart"></span>
+                    {% trans "Seleziona Articoli" %}
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="{% url 'view_cart' %}">
+                    <span data-feather="shopping-cart"></span>
+                    {% trans "Carrello" %}
+                  </a>
+                </li>
+  
+              {# per ogni stato aggiungo un pulsante nella toolbar #}  
+              {% for causale in causali %}
+              <li class="nav-item">
+                <a class="nav-link" href="{% url 'documenti' causale.CDCODICE %}">
+                  <span data-feather="file"></span>
+                  {{ causale.CDDESCRI }}
+                </a>
+              </li>
+              {% endfor %}          
+              <li class="nav-item">
+                <a class="nav-link" href="{% url 'products' %}">
+                  <span data-feather="shopping-cart"></span>
+                  {% trans "Articoli" %}
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="{% url 'clients' %}">
+                  <span data-feather="users"></span>
+                  {% trans "Clienti" %}
+                </a>
+              </li> 
+              <li class="nav-item">
+                <a class="nav-link" href="{% url 'dashboard' %}">
+                  <span data-feather="home"></span>
+                  {% trans "Dashboard" %}
+                </a>
+              </li>     
+              <li class="nav-item">
+                <a class="nav-link" href="{% url 'uploadDeskTooCSV' %}">
+                  <span data-feather="home"></span>
+                  {% trans "Import ordini" %}
+                </a>
+              </li>           
+              <li class="nav-item">
+                <a class="nav-link" href="{% url 'logout' %}">
+                  <span data-feather="users"></span>
+                  {% trans "Log Out" %}
+                </a>
+              </li>               
+            </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-2">
+          <a class="btn btn-info fa-solid fa-cart-shopping" href="{% url 'view_cart' %}">
+            <span id="cart_quantity" class="badge badge-danger">{{ itemInCart.count }}</span>
+          </a>
+        </div>
+
+      </div>
+
+      
+    </nav>
+
+    <div class="content container-fluid" style="margin-top:50px">    
+        <main>  
+          {% if messages %}
+          {% for msg in messages %}
+            <div class="alert alert-info alert-dismissable">
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="x"></button>
+              {{msg.message}}
+            </div>
+          {% endfor %}
+        {% endif %}
+
+<!--Delete button will redirect to the href of the element with 'id = caller-id' property in this modal-->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" caller-id="" role="dialog" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-body confirm-delete">
+        <p id="modalMessagePara"></p>        
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"> {% trans "Annulla" %}</button>
+        <button type="button" class="btn btn-danger" data-bs-dismiss="modal" id="confirmButtonModal"> {% trans "Procedi" %}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" tabindex="-1" role="dialog" id="modal">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content"></div>
+  </div>
+</div>
+
+
+    {% block main %}
+
+    {% endblock %}
+       </main>  
+    </div>
+
+      {% block custom_js %}
+      {% endblock %}   
+
+  </body>
+</html>

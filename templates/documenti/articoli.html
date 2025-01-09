@@ -1,0 +1,140 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% load bootstrap %}
+{% load i18n %}
+
+{% block main %}
+
+<form class="" action="#" method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+
+
+<div class="modal-header border-bottom-0">
+  <h5 class="modal-title">{% trans "Articolo" %}</h5>
+  <button type="button" class="btn-close" onClick="javascript:history.go(-1);" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+
+<div class="modal-body py-0">
+
+  
+  <div class="row">
+      <div class="col-6">
+          {{ form.ARCODICE|bootstrap }}
+      </div>                
+      <div class="col-6">
+          {{ form.ARDESCRI|bootstrap|default_if_none:"" }}
+      </div>
+      <div class="col-6">
+        {{ form.ARPREZZO|bootstrap }}
+    </div>  
+    <div class="col-6">
+      {{ form.ARDESSUP|bootstrap|default_if_none:"" }}
+  </div>  
+  <div class="col-6">
+    {{ form.ARCODGRU|bootstrap|default_if_none:"" }}
+</div>   
+  <div class="col-6">
+    {{ form.ARCODSGR|bootstrap|default_if_none:"" }}
+</div>                                 
+  </div>
+
+  <div class="row">
+    <div class="col-6">
+      {{ form.ARCODIVA|bootstrap|default_if_none:"" }}
+  </div>          
+    <div class="col-6">
+        {{ form.AR_COSTO|bootstrap }}
+    </div>
+    <div class="col-6">
+      {{ form.ARCODCAT|bootstrap}}
+  </div>                 
+    <div class="col-6">
+        {{ form.ARCODMAR|bootstrap}}
+    </div>
+    <div class="col-6">
+      {{ form.ARCODUNI|bootstrap }}
+  </div>  
+  <div class="col-6">
+</div>  
+<div class="col-6">
+</div>                                 
+</div>
+
+<div class="row">
+  <div class="col-6">
+    {{ form.ARBARCOD|bootstrap|default_if_none:"" }}
+</div>          
+  <div class="col-6">
+      {{ form.ARBARCO2|bootstrap }}
+  </div>
+  <div class="col-6">
+    {{ form.ARBARCO3|bootstrap}}
+</div>                 
+  <div class="col-6">
+  </div>
+  <div class="col-6">
+</div>  
+<div class="col-6">
+</div>  
+<div class="col-6">
+</div>                                 
+</div>
+
+</div>
+<div class="row">
+<div class="col-1">
+  <button type="submit" class="btn btn-lg btn-primary w-100 mx-0 mb-2">{% trans "Salva" %}</button>
+</div>
+<div class="col-1"> 
+  <button type="button" onClick="javascript:history.go(-1);" class="btn btn-lg btn-light w-100 mx-0" data-bs-dismiss="modal">{% trans "Annulla" %}</button>  
+</div>   
+</div>
+
+<div class="container my-5"></div>
+<div id="carouselExampleAutoplaying" class="carousel slide" data-bs-theme="dark" data-bs-ride="carousel">
+  <div class="carousel-inner">
+    {% for immagine in galleria  %}  
+
+    {% if immagine.ALDESCRI == "Asset_DOCUMENT" %}
+      {% if forloop.first %}
+      <div class="carousel-item active">
+        <object data='{{immagine.ARURLLNK}}' type='application/pdf' class="object-fit"></object>
+      </div>             
+      {% else %}
+      <div class="carousel-item">
+        <object data='{{immagine.ARURLLNK}}' type='application/pdf' class="object-fit"></object>
+      </div>                 
+      {% endif %}      
+
+    {% else %}
+      {% if forloop.first %}
+      <div class="carousel-item active">
+        <img src="{{immagine.ARURLLNK}}"  class="object-fit" alt="{{immagine.ALDESCRI}}">
+      </div>             
+      {% else %}
+      <div class="carousel-item">
+        <img src="{{immagine.ARURLLNK}}"  class="object-fit" alt="{{immagine.ALDESCRI}}">
+      </div>                 
+      {% endif %}      
+
+    {% endif %}          
+    
+      {% endfor %}        
+  </div>
+  <button class="carousel-control-prev" type="button" data-bs-target="#carouselExampleAutoplaying" data-bs-slide="prev">
+    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+    <span class="visually-hidden">Previous</span>
+  </button>
+  <button class="carousel-control-next" type="button" data-bs-target="#carouselExampleAutoplaying" data-bs-slide="next">
+    <span class="carousel-control-next-icon" aria-hidden="true"></span>
+    <span class="visually-hidden">Next</span>
+  </button>
+</div>
+</div>
+
+</form>
+
+
+
+
+{% endblock %}

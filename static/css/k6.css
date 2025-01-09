@@ -1,0 +1,5 @@
+
+/* fa in modo che la select per autocompletamento abbioa l'altezza giusta */
+.select2-container .select2-selection--single {
+    height: 100%!important;
+}

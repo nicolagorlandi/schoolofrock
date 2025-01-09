@@ -1,0 +1,5 @@
+/doc
+/.venv
+__pycache__
+/k6venv
+/staticfiles

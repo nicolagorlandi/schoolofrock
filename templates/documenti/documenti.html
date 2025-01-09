@@ -1,0 +1,135 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% load bootstrap %}
+{% load i18n %}
+
+{% block css %}
+{% endblock %}
+
+{% block main %}
+
+  <div class="justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">        
+    <button class="btn btn-info" type="button" data-bs-toggle="collapse" data-bs-target="#pannelloRicerca" aria-expanded="true" aria-controls="pannelloRicerca">
+      {% trans "Ricerca in" %} {{descrizioneCausale}}
+      <span class="badge badge-danger">{{ filter.qs.count }}</span>
+    </button>    
+    <!-- Se utente con il ruolo di manager articoli aggiungo la possibilità di aggiungere un articolo -->        
+    {% if perms.documenti.Manager_Ordini %}          
+    <a class="btn btn-secondary" href="{% url 'add_ordine' causaleSelezionata %}" role="button">{% trans "Nuovo" %} {{descrizioneCausale}}</a>                   
+    {% for gruppo in gruppi %}
+    <!-- Se utente con il ruolo di manager articoli aggiungo la possibilità di aggiungere un articolo -->
+    <a class="btn btn-success" href="{% url 'carica_Ordine' causaleSelezionata gruppo.pk %}" role="button">{% trans "Crea Veloce "%}{{ gruppo.GRDESCRI }}</a>   
+    {% endfor %}  
+    {% endif %}            
+  </div>
+
+  <p class="d-inline-flex gap-1">
+
+  </p>
+  <div class="collapse" id="pannelloRicerca">
+    <div class="card card-body">
+      <div class="container-fluid -sm">
+        <form method="GET">
+          <div class="row">  
+          {% for field in filter.form %}
+          <div class="col">
+            {{ field|bootstrap }}
+          </div>  
+          {% endfor %}
+          <div class="col">      
+            <button style="margin-top: 24px;" type="submit" class="btn btn-info"><i class="fa fa-search"></i>{% trans "Ricerca" %}
+            </button>
+          </div>  
+        </div>    
+        </form>      
+        </div>    
+    </div>
+  </div>
+  
+
+<div class="table-responsive">
+  <table class="table table-striped table-sm">
+    <thead>
+      <tr>        
+        {% if perms.documenti.Manager_Ordini %}
+        <th scope="col">{% trans "Azioni" %} </th> 
+        {% endif %}                       
+        <th scope="col">{% trans "Numero" %} </th>
+        <th scope="col">{% trans "Data" %}</th>
+        <th scope="col">{% trans "Intestatario" %} </th>        
+        <th scope="col">{% trans "Note" %} </th>          
+        <th class="text-end" scope="col">{% trans "Totale" %} </th>        
+        <th scope="col">{% trans "Articoli" %} </th>    
+        <th scope="col">{% trans "Evaso" %} </th> 
+        <th scope="col">{% trans "Inviato" %} </th> 
+      </tr>
+    </thead>
+    <tbody>
+
+      {% for ord_mast_ in filter.qs %}
+    <tr>
+      {% if perms.documenti.Manager_Ordini %}
+        <!-- Se utente con il ruolo di manager nominativi aggiungo la possibilità di eliminare o modificare un articolo -->
+        <td>
+          <div class="btn-group-lg" role="group" aria-label="{% trans "Azioni" %}">
+              <a class="btn btn-primary far fa-edit" href="{% url 'edit_ordine' ord_mast_.pk %}" role="button"></a>     
+
+                {% if causaleSelezionata == "OV" %}
+                  {% if not ord_mast_.DocumentoEvaso %}    
+                  <a class="confirm-modal btn btn-danger fas fa-trash-alt" 
+                  href="{% url 'delete_ordine' ord_mast_.pk %}"                 
+                  title="Delete" 
+                  data-bs-toggle="modal" 
+                  data-bs-target="#confirmDeleteModal" 
+                  data-recordid ="delete{{ord_mast_.pk}}" 
+                  data-msgtext ="Si desidera eliminare in modo definitivo il documento {{ord_mast_}} ?"
+                  id="deleteButton{{ord_mast_.pk}}"></a>                              
+                    <!-- Se Documento di tipo ordine metto la possibilità di evaderlo -->              
+                    <a class="confirm-modal btn btn-warning fa-solid fa-check-double" 
+                    href="{% url 'evade_ordine' ord_mast_.pk %}" 
+                    title="" 
+                    data-bs-toggle="modal" 
+                    data-bs-target="#confirmDeleteModal" 
+                    data-recordid ="evadi{{ord_mast_.pk}}" 
+                    data-msgtext ="Si desidera evadere il documento {{ord_mast_}}?"
+                    id="evadeordine{{ord_mast_.pk}}"></a>                
+                  {% else %}         
+                    {% if ord_mast_.getEvasoDa %}                
+                      <!-- Se Documento evaso apro il documento che lo evade -->  
+                      <a class="btn btn-success fa-regular fa-paper-plane" href="{% url 'edit_ordine' ord_mast_.getEvasoDa %}" role="button"></a>   
+                    {% endif %}                
+                  {% endif %}   
+              {% else %}              
+              <a class="confirm-modal btn btn-danger fas fa-trash-alt" 
+                href="{% url 'delete_ordine' ord_mast_.pk %}"                 
+                title="Delete" 
+                data-bs-toggle="modal" 
+                data-bs-target="#confirmDeleteModal" 
+                data-recordid ="delete{{ord_mast_.pk}}" 
+                data-msgtext ="Si desidera eliminare in modo definitivo il documento {{ord_mast_}} ?"
+                id="deleteButton{{ord_mast_.pk}}"></a>                
+              {% endif %}     
+
+          </div>
+        </td>               
+      {% endif %}          
+      <td>{{ord_mast_.DONUMORD}}/{{ord_mast_.DOALFORD}}</td>
+      <td>{{ord_mast_.DODATORD|date:"SHORT_DATE_FORMAT" }}</td>
+      <td>{{ord_mast_.DOCODINT|default_if_none:""}}</td>
+      <td>{{ord_mast_.DONOTE|default_if_none:""}}</td>
+      <td class="text-end">{{ord_mast_.TotaleDocumento|floatformat:"2g"}}</td>
+      <td>{{ord_mast_.articoliDocumento}}</td>
+      <td><input class="form-check-input" type="checkbox" disabled id="flexCheckChecked" 
+      {% if ord_mast_.DocumentoEvaso %}checked{% endif %}></td>
+      <td><input class="form-check-input" type="checkbox" disabled id="flexCheckCheckedSync" 
+        {% if ord_mast_.SYNC_UPDATE == 0 %}checked{% endif %}></td>
+    </tr>
+      {% endfor %}
+
+    </tbody>
+  </table>
+</div>
+
+
+{% endblock %}
+

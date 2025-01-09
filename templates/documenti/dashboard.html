@@ -1,0 +1,68 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% load bootstrap %}
+{% load crispy_forms_tags %}
+{% load i18n %}
+
+{% block main %}
+
+
+  <h2>{% trans "Situazione Ordinato" %}</h2>
+
+  <p class="d-inline-flex gap-1">
+    <button class="btn btn-info" type="button" data-bs-toggle="collapse" data-bs-target="#pannelloRicerca" aria-expanded="true" aria-controls="pannelloRicerca">
+      {% trans "Ricerca" %}
+      <span class="badge badge-danger">{{ filter.qs.count }}</span>
+    </button>
+  </p>
+  <div class="collapse" id="pannelloRicerca">
+    <div class="card card-body">
+      <div class="container-fluid -sm">
+        <form method="GET">
+          <div class="row">  
+          {% for field in filter.form %}
+          <div class="col">
+            {{ field|bootstrap }}
+          </div>  
+          {% endfor %}
+          <div class="col">      
+            <button style="margin-top: 24px;" type="submit" class="btn btn-info"><i class="fa fa-search"></i>{% trans "Ricerca" %}
+            </button>
+          </div>  
+        </div>    
+        </form>      
+        </div>    
+    </div>
+  </div>
+  
+
+  <div class="table-responsive">
+    <table class="table table-striped table-sm">
+      <thead>
+        <tr>
+          <th scope="col">{% trans "Articolo" %} </th>
+          <th class="text-end" scope="col">{% trans "Ordinato" %}</th>
+          <th class="text-end" scope="col">{% trans "Giacenza" %} </th>
+          <th class="text-end" scope="col">{% trans "Carico" %} </th>          
+          <th class="text-end" scope="col">{% trans "Scarico" %} </th>                    
+          <th class="text-end" scope="col">{% trans "Disponibili" %} </th>
+        </tr>
+      </thead>
+      <tbody>
+
+        {% for articolo in filter.qs %}
+      <tr>
+        <td>{{articolo.ARCODICE}} {{articolo.ARDESCRI}}</td>
+        <td class="text-end" >{{articolo.impegnato|floatformat:"0g"}}</td>
+        <td class="text-end">{{articolo.giacenza|floatformat:"0g"}}</td>
+        <td class="text-end">{{articolo.carico|floatformat:"0g"}}</td>
+        <td class="text-end">{{articolo.scarico|floatformat:"0g"}}</td>
+        <td class="text-end">{{articolo.produrre|floatformat:"0g"}}</td>
+      </tr>
+        {% endfor %}
+
+      </tbody>
+    </table>
+  </div>
+
+{% endblock %}

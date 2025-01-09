@@ -1,0 +1,80 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% load bootstrap %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+
+{% block main %}
+
+<div class="justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">        
+    <button class="btn btn-info" type="button" data-bs-toggle="collapse" data-bs-target="#pannelloRicerca" aria-expanded="true" aria-controls="pannelloRicerca">
+      {% trans "Ricerca in" %} {{descrizioneCausale}}
+      <span class="badge badge-danger">{{ filter.qs.count }}</span>
+    </button>         
+    {% if perms.documenti.Manager_Articoli %}
+    <!-- Se utente con il ruolo di manager articoli aggiungo la possibilità di aggiungere un articolo -->
+    <a class="btn btn-primary" href="{% url 'add_Articolo' %}" role="button">{% trans "Aggiungi Articolo" %}</a> 
+    {% endif %}           
+  </div>
+
+  <div class="collapse" id="pannelloRicerca">
+    <div class="card card-body">
+      <div class="container-fluid -sm">
+        <form method="GET">
+          <div class="row">  
+          {% for field in filter.form %}
+          <div class="col">
+            {{ field|bootstrap }}
+          </div>  
+          {% endfor %}
+          <div class="col">      
+            <button style="margin-top: 24px;" type="submit" class="btn btn-info"><i class="fa fa-search"></i>{% trans "Ricerca" %}
+            </button>
+          </div>  
+        </div>    
+        </form>      
+        </div>    
+    </div>
+  </div>  
+
+
+  <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">  
+    <h1 class="h2">{% trans "Articoli" %}</h1>    
+  </div>  
+ {% include 'documenti/_pagination.html' %}
+  <div class='row card-group'>
+        {% for articolo in articoli  %}
+        <div class="col-4">
+            <div class="card h-100">
+            {% if articolo.getimage %}
+            <img src="{{articolo.getimage}}" class="card-img-top" alt="...">
+            {% endif %}   
+            <div class="card-body">
+              <h5 class="card-title">{{articolo.ARCODICE}}</h5>
+              <p class="card-text">{{articolo.ARDESCRI}}</p>
+              <p class="card-text">{% trans "Prezzo" %} {{articolo.ARPREZZO|floatformat:"2g"}}</p>
+              
+              {% if perms.documenti.Manager_Articoli %}
+              <!-- Se utente con il ruolo di manager articoli aggiungo la possibilità di eliminare o modificare un articolo -->
+                <div class="btn-group-lg" role="group" aria-label="{% trans "Azioni" %}">
+                    <a class="btn btn-primary far fa-edit" href="{% url 'edit_Articolo' articolo.pk %}" role="button"></a>     
+                    <a class="confirm-modal btn btn-danger fas fa-trash-alt" 
+                    href="{% url 'delete_Articolo' articolo.pk %}" 
+                    title="Delete" 
+                    data-bs-toggle="modal" 
+                    data-bs-target="#confirmDeleteModal"                 
+                    data-msgtext ="Si desidera eliminare in modo definitivo l'articolo {{articolo}}?"          
+                    data-recordid ="{{articolo.pk}}"          
+                    id="deleteButton{{articolo.pk}}"></a>  
+                </div>
+               
+              {% endif %}    
+            </div>
+          </div>
+        </div>
+          {% endfor %}
+
+  </div>
+
+ 
+{% endblock %}
