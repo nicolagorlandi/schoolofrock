@@ -90,9 +90,15 @@
                 </a>
               </li>
               <li class="nav-item">
-                <a class="nav-link" href="{% url 'clients' %}">
+                <a class="nav-link" href="{% url 'clients' tipo=CCATCLI %}">
                   <span data-feather="users"></span>
                   {% trans "Clienti" %}
+                </a>
+              </li> 
+              <li class="nav-item">
+                <a class="nav-link" href="{% url 'clients' tipo=CCATFOR %}">
+                  <span data-feather="users"></span>
+                  {% trans "Fornitori" %}
                 </a>
               </li> 
               <li class="nav-item">

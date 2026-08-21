@@ -108,7 +108,7 @@ class Ord_MastFilter(django_filters.FilterSet):
                              method='filter_ApertiEvasi',
                              label=_('Stato')
                            )
-    
+    # se documento senza righe si considera non evadibile.
     def filter_ApertiEvasi(self, queryset, name, value):
         if value == 'Aperti':
             queryset = queryset.filter(DOCODICE__in=Subquery(Ord_dett.objects.filter(DOFLEVAS=0).values('DOCODICE')))

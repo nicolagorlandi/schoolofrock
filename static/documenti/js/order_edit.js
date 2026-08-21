@@ -46,3 +46,22 @@
 
         })
     })($)
+
+    $("#id_DOCODINT").on("select2:select", function (event) {
+    var nominativoId = event.params.data.id;
+
+    $.ajax({
+        url: '/doc/ajax/leggiintestatario/',
+        data: {'nominativoId': nominativoId},
+        dataType: 'json',
+        success: function (data) {
+            $('#id_DORITPIM').val(data.DORITPIM);
+            $('#id_DORITPER').val(data.DORITPER);
+        }
+    });
+});
+
+$("#id_DOCODINT").on("select2:clear", function () {
+    $('#id_DORITPIM').val('0');
+    $('#id_DORITPER').val('0');
+});

@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.models import User
-from django.forms import FileField, Form, TextInput, widgets
+from django.forms import FileField, Form, TextInput, ValidationError, widgets
 from .models import *
 from django.utils.translation import gettext as _
 from django.forms import ModelForm, Textarea
@@ -34,7 +34,19 @@ class UserLoginForm(forms.ModelForm):
 class ClientForm(forms.ModelForm):
     class Meta:
         model = Nominativi     
-        fields=['NOCODICE','NOCOGNOM','NO_NOME','NORAGSOC','NOTELEF1','NO_EMAIL']
+        fields=['NOCODICE','NOCOGNOM','NO_NOME','NORAGSOC','NOTELEF1','NO_EMAIL','NOINDIRI',
+                'NONUMCIV',
+                'NO_CITTA',
+                'NOPROVIN',
+                'NOINDCAP',
+                'NOPARIVA',
+                'NOCODFIS',
+                'NONAZION',
+                'NONOMPEC',
+                'NOCODSDI',
+                'NORITPIM',
+                'NORITPER',
+                'NOCASSA']
         labels = {
             'NOCODICE': _('Codice'),
             'NOCOGNOM': _('Cognome'),
@@ -42,7 +54,25 @@ class ClientForm(forms.ModelForm):
             'NORAGSOC': _('Descrizione'),
             'NOTELEF1': _('Telefono'),
             'NO_EMAIL': _('E-Mail'),
+            'NOINDIRI':_('Indirizzo'),
+            'NONUMCIV':_('Civico'),
+            'NO_CITTA':_('Citta'),
+            'NOPROVIN':_('Provincia'),
+            'NOINDCAP':_('CAP'),
+            'NOPARIVA':_('P.IVA'),
+            'NOCODFIS':_('Codice Fiscale'),
+            'NONAZION':_('Nazione'),
+            'NONOMPEC':_('PEC'),
+            'NOCODSDI':_('SDI'),
+            'NORITPIM':_('% Base Imp.Ritenuta'),
+            'NORITPER':_('% Ritenuta Acconto'),
+            'NOCASSA':_('Cassa(%)'),          
         }
+
+
+    def __init__(self, *args, **kwargs):
+        self.tipo = kwargs.pop('tipo', None)
+        super().__init__(*args, **kwargs)
 
 # form per il caricamento veloce di un ordine (quindi codice nominativo opzionale)
 class FastClientForm(forms.ModelForm):
@@ -79,19 +109,25 @@ class ArticoliForm(forms.ModelForm):
         } 
 
     # per motivi di velocita impostata la ricerca solo sui primi 5 record!
-    ARCODGRU = forms.ModelChoiceField(label=_('Gruppo'),queryset=Grmemast.objects.all()[:5], empty_label="",
+    ARCODGRU = forms.ModelChoiceField(label=_('Gruppo'),queryset=Grmemast.objects.all()[:5], 
+                                        empty_label="",
+                                        required=False,
                                         widget=forms.Select(attrs={
                                             'class': "form-select text-center fw-bold",
                                             'style': 'max-width: auto;',
                                         }))   
 
-    ARCODSGR = forms.ModelChoiceField(label=_('Sotto Gruppo'),queryset=Grmedett.objects.all()[:5], empty_label="",
+    ARCODSGR = forms.ModelChoiceField(label=_('Sotto Gruppo'),queryset=Grmedett.objects.all()[:5], 
+                                        empty_label="",
+                                        required=False,
                                         widget=forms.Select(attrs={
                                             'class': "form-select text-center fw-bold",
                                             'style': 'max-width: auto;',
                                         }))                
     
-    ARCODMAR = forms.ModelChoiceField(label=_('Marca'),queryset=Marchiar.objects.all()[:5], empty_label="",
+    ARCODMAR = forms.ModelChoiceField(label=_('Marca'),queryset=Marchiar.objects.all()[:5], 
+                                        empty_label="",
+                                        required=False,
                                         widget=forms.Select(attrs={
                                             'class': "form-select text-center fw-bold",
                                             'style': 'max-width: auto;',
@@ -99,14 +135,40 @@ class ArticoliForm(forms.ModelForm):
 # caricamento ordini!
 class creaOrdineForm(ModelForm):
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.fields['DORITACC'].disabled = True
+        self.fields['DOCODUTE'].disabled = True
+        self.fields['DOCODCAU'].disabled = True
+
     class Meta:
         model = Ord_Mast        
-        fields = ['DONUMORD','DOALFORD','DODATORD','DOCODINT','DOCODCAU','DOCODUTE','DONOTE','SYNC_UPDATE']
+        fields = ['DONUMORD','DOALFORD','DODATORD','DOCODINT','DOCODCAU','DOCODUTE','DONOTE','SYNC_UPDATE','DOCODPAG','DORITPIM','DORITPER','DORITACC']
+        labels = {
+            'DONUMORD': _('Numero'),
+            'DOALFORD': _('Serie'),
+            'DODATORD': _('Data'),
+            'DOCODINT': _('Intestatario'),
+            'DOCODCAU': _('Causale'),
+            'DOCODUTE': _('Operatore'),
+            'DONOTE': _('Note'),
+            'TotaleDocumento': _('Totale'),
+            'SYNC_UPDATE': _('Inviato'),
+            'DOCODPAG': _('Pagamento'),
+            'DORITPIM': _('Percentuale ritenuta su imponibile'),
+            'DORITPER': _('Percentuale ritenuta d\'acconto'),
+            'DORITACC': _('Importo ritenuta d\'acconto'),
+        }
         widgets = {
             'DONOTE': Textarea(attrs={ 'rows': 2}),
             'DODATORD':DateInput,
+            'DORITPIM': forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
+            'DORITPER': forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
+            'DORITACC': forms.NumberInput(attrs={'readonly': 'readonly'}),
             'DOCODINT': autocomplete.ModelSelect2(
                             url='nominativi-autocomplete',
+                            forward=['DOCODCAU'],
                             attrs={
                                 # Set some placeholder
                                 'data-placeholder': 'Autocomplete ...',
@@ -116,22 +178,6 @@ class creaOrdineForm(ModelForm):
                                 'style':"line-height: 0px;"
                             }),     
         }    
-        labels = {
-            'DONUMORD': _('Numero'),  
-            'DOALFORD': _('Serie'),   
-            'DODATORD': _('Data'),    
-            'DOCODINT': _('Intestatario'),                 
-            'DOCODCAU': _('Causale'),                 
-            'DOCODUTE': _('Operatore'),
-            'DONOTE': _('Note'),
-            'TotaleDocumento': _('Totale'),
-            'SYNC_UPDATE':_('Inviato'),
-        }                       
-        
-    def __init__(self, *args, **kwargs):
-        super(creaOrdineForm, self).__init__(*args, **kwargs)
-        self.fields["DOCODUTE"].disabled=True
-        self.fields["DOCODCAU"].disabled=True  
         
 # dettaglio riga documento
 class creaDettaglioOrdineForm(ModelForm):
@@ -166,7 +212,67 @@ class creaDettaglioOrdineForm(ModelForm):
                                 "class":"form-control form-control-sm "
                             }),
 
-        }   
+        } 
+
+    # se la quantita non è popolato o a zero
+    def clean_DOQTAUM1(self):
+        q = self.cleaned_data.get("DOQTAUM1")
+        if q == 0 or q==None:
+            raise ValidationError("La quantità non può essere zero.")
+        return q  
+
+# form scadenze
+class ScadenzeForm(ModelForm):
+
+    SCTIPPAG = forms.ModelChoiceField(
+        label=_('Tipo pagamento'),
+        queryset=MODPAGAM.objects.all().order_by('MPCODICE'),
+        required=False,
+        empty_label='',
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'}),
+    )
+
+    class Meta:
+        model = Scadenze
+        fields = ['SCNUMSCA', 'SCDATSCA', 'SCIMPSCA', 'SCTIPPAG', 'SCPAGATA', 'SCDATPAG', 'SCNOTE']
+        labels = {
+            'SCNUMSCA': _('N. rata'),
+            'SCDATSCA': _('Scadenza'),
+            'SCIMPSCA': _('Importo'),
+            'SCTIPPAG': _('Tipo pagamento'),
+            'SCPAGATA': _('Pagata'),
+            'SCDATPAG': _('Data pagamento'),
+            'SCNOTE': _('Note'),
+        }
+        widgets = {
+            'SCDATSCA': DateInput(attrs={'type': 'date'}),
+            'SCDATPAG': DateInput(attrs={'type': 'date'}),
+            'SCIMPSCA': forms.NumberInput(attrs={'step': 1,'decimal_places' : 2,"class":"form-control form-control-sm -sm text-end"}),
+            'SCNOTE': forms.TextInput(),
+        }
+
+# dettaglio iva
+class RivadettForm(ModelForm):
+
+    RICODIVA = forms.ModelChoiceField(
+        label=_('Codice IVA'),
+        queryset=Codiciva.objects.all().order_by('CICODICE'),
+        required=True,
+        empty_label='',
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'}),
+    )
+
+    class Meta:
+        model = Rivadett
+        fields = ['RICODIVA','RIIMPONI', 'RIIMPOST']
+        labels = {
+            'RIIMPONI': _('Imponibile'),
+            'RIIMPOST': _('Imposta'),
+        }
+        widgets = {
+            'RIIMPONI':forms.NumberInput(attrs={'step': 1,'decimal_places' : 2,"class":"form-control form-control-sm -sm text-end"}),
+            'RIIMPOST':forms.NumberInput(attrs={'step': 1,'decimal_places' : 2,"class":"form-control form-control-sm -sm text-end"}),
+        }
                     
 # import elenco articoli da csv basato su carello da DESKTOO
 class UploadFileForm(forms.Form):

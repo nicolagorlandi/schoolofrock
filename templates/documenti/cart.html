@@ -39,12 +39,12 @@
           <tr>          
             <td>
               <a class="confirm-modal btn btn-danger fas fa-trash-alt" 
-              href="{% url 'remove_from_cart' item.ARCODICE %}"                 
+              href="{% url 'remove_from_cart' id=item.ARCODICE %}"                 
               title="Delete" 
               data-bs-toggle="modal" 
               data-bs-target="#confirmDeleteModal" 
               data-recordid ="delete{{item.ARCODICE}}" 
-              data-msgtext ="Vuoi cancellare questo prodotto dal carrello? {{item.ARCODICE}} ?"
+              data-msgtext ="Vuoi cancellare {{item.ARCODICE}} dal carrello ?"
               id="deleteButton{{item.ARCODICE}}"
               ></a>               
 

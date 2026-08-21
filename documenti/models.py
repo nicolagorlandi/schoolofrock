@@ -6,11 +6,118 @@ from uuid import uuid4
 from django.contrib.auth.models import User
 from django.db import models
 from django.db.models import Sum, Count,Max,Min, F,Aggregate, CharField,OuterRef
+from decimal import ROUND_HALF_EVEN, Decimal
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 import io
 import xml.etree.ElementTree as ET
 from xml.etree import ElementTree
+from django.core.cache import cache
+
+from PaNet1Project.settings import CCATCLI, CCATFOR
+from documenti import funzioni
+from .datiRiepilogo import DatiRiepilogo
+from .rateizzazione import ElementoRateizzazione, Rateizzazione
+from documenti import datiRiepilogo
+
+class MODPAGAM(models.Model):
+    MPCODICE = models.CharField(max_length=42,primary_key=True)
+    # Se 1 pagamento ritenute
+    MPRITACC = models.IntegerField(null=True, blank=True, default=0)
+
+    #Utility fields
+    slug = models.SlugField()    
+
+    def __str__(self):
+        return '{}'.format(self.MPCODICE)
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # per gestire in fase di caricamento da Emporio Open se record inserito o modificao
+        self.nuovo = False
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.MPCODICE)
+        super().save(*args, **kwargs)
+
+class PAGAMENTI(models.Model):
+    PACODICE = models.CharField(max_length=5,primary_key=True)
+    PADESCRI = models.CharField(null=True, blank=True, max_length=50)
+
+    #Utility fields
+    slug = models.SlugField()    
+
+    def __str__(self):
+        return '{}'.format(self.PACODICE)
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # per gestire in fase di caricamento da Emporio Open se record inserito o modificao
+        self.nuovo = False
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.PACODICE)
+        super().save(*args, **kwargs)
+
+    def legge_rateizzazione(self):
+        """Costruisce la rateizzazione definita per questo pagamento."""
+        rateizzazione = Rateizzazione()
+        rateizzazione.empty()
+
+        for dettaglio in self.pag_dett_set.all().order_by('PDNUMSCA'):
+            rateizzazione.definizione.append(ElementoRateizzazione(
+                tipo=dettaglio.PDGIORNO,
+                tipo_pagamento=(
+                    str(dettaglio.PDTIPPAG)
+                    if dettaglio.PDTIPPAG is not None
+                    else ''
+                ),
+                intervallo=dettaglio.PDINTERV or 0,
+                percentuale=dettaglio.PDPERCEN or Decimal('0'),
+                pagata=dettaglio.PDPAGATA or 'N',
+                giorno_del_mese=dettaglio.PD_FISSO or 0,
+            ))
+
+        return rateizzazione
+
+    # Alias con il nome della procedura Pascal originale.
+    def legge_pagamento(self):
+        return self.legge_rateizzazione()
+
+    
+
+class PAG_DETT(models.Model):
+    PACODICE = models.ForeignKey(PAGAMENTI,  on_delete=models.CASCADE) # on_update non esiste in Django
+    PDNUMSCA = models.IntegerField(default=0)
+    # Data Doc.,Fine Mese,Inizio Mese'
+    PDGIORNO = models.CharField(null=True, blank=True, max_length=11,   
+        #il primo valore è quello registrato a database, il secondo quello mostrato a video  
+        choices=[
+            ("Data Doc.", "Data Doc."),
+            ("Fine Mese", "Fine Mese"),
+            ("Inizio Mese", "Inizio Mese"),
+        ])
+    PDINTERV = models.IntegerField(blank=True, null=True, default=0)
+    PDPERCEN = models.DecimalField(null=True, blank=True, decimal_places=4,max_digits=20,default=0)
+    # on_update non esiste in Django
+    PDTIPPAG = models.ForeignKey(MODPAGAM, blank=True, null=True, on_delete=models.RESTRICT)
+    # se a S pagato
+    PDPAGATA = models.CharField(null=True, blank=True, default='N', max_length=1)
+    # giorno fisso (0 se non c'è)
+    PD_FISSO = models.IntegerField(null=True, blank=True,default=0)
+
+
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['PACODICE', 'PDNUMSCA'],
+                name='pk_PACODICE_PDNUMSCA'
+            )
+        ]
+
 
 # Anagrafica dei nominativi mutuata da Emporio Open (sotto insieme di campi)
 class Nominativi(models.Model):
@@ -40,7 +147,19 @@ class Nominativi(models.Model):
     NONAZION = models.CharField(null=True, blank=True, max_length=2)
     NONOMPEC = models.CharField(null=True, blank=True, max_length=120)
     NOCODSDI = models.CharField(null=True, blank=True, max_length=7)
+    # tipo di nominativo (C=Cliente, F=Fornitore)
+    NOCODNOM = models.CharField(max_length=5,default=CCATCLI, 
+        #il primo valore è quello registrato a database, il secondo quello mostrato a video  
+        choices=[
+            (CCATCLI, CCATCLI),
+            (CCATFOR, CCATFOR),
+        ])
 
+    # solo per fornitori!
+    NORITPIM = models.DecimalField(null=True, blank=True, default=0, max_digits=5, decimal_places=2) # Ritenuta d'acconto percentuale applicata all'imponibile
+    NORITPER = models.DecimalField(null=True, blank=True, default=0, max_digits=5, decimal_places=2) # Ritenuta d'acconto percentuale applicata all'imposta
+    NOCASSA = models.DecimalField(null=True, blank=True, default=0, max_digits=5, decimal_places=2) # Cassa previdenziale
+ 
     # ruolo per abilitare la modifica degli articoli!
     class Meta:
         ordering = ['NORAGSOC'] 
@@ -73,7 +192,25 @@ class Nominativi(models.Model):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # per gestire in fase di caricamento da Emporio Open se record inserito o modificao
-        self.nuovo = False           
+        self.nuovo = False    
+
+    # NON UTILIZZARE nominativi direttamente ma sempre filtre
+    @classmethod
+    def getClienti(cls):
+        return cls.objects.filter(NOCODNOM=CCATCLI)       
+
+    @classmethod
+    def getFornitori(cls):
+        return cls.objects.filter(NOCODNOM=CCATFOR) 
+
+    @classmethod
+    def getNominativi(cls,tipo):
+        if tipo==CCATCLI:
+            return cls.getClienti()
+        elif tipo==CCATFOR:
+            return cls.getFornitori()
+        else:
+            return cls.objects.none()  # Return an empty queryset if tipo is None or unrecognized
 
 # Anagrafica codici IVA
 class Codiciva(models.Model):
@@ -81,6 +218,13 @@ class Codiciva(models.Model):
     CICODICE = models.CharField(max_length=5,primary_key=True)
     CIDESCRI = models.CharField(null=True, blank=True, max_length=254)
     CIPERIVA = models.DecimalField(null=True, blank=True, decimal_places=2,max_digits=5,default=0)
+
+    CIESENTE = models.CharField(null=True, blank=True, max_length=1, default='N') # flag se esente IVA
+    CIREVCHA = models.SmallIntegerField(null=True,default=0) # è un flag se 1 reverse charge
+
+    CINATURA =models.CharField(null=True, blank=True, max_length=2, default='' ) # natura fatturazione elettronica
+
+    CISPLPAY = models.SmallIntegerField(null=True,default=0) # è un flag se 1 split payment
 
     #Utility fields
     slug = models.SlugField()    
@@ -92,6 +236,7 @@ class Codiciva(models.Model):
         super().__init__(*args, **kwargs)
         # per gestire in fase di caricamento da Emporio Open se record inserito o modificao
         self.nuovo = False    
+
 
 # gruppo merceologico
 class Grmemast(models.Model):
@@ -207,8 +352,8 @@ class Articoli(models.Model):
     ARLOTMIN = models.DecimalField(null=True, blank=True, decimal_places=4,max_digits=12,default=0)
 
 
-    #Utility fields
-    slug = models.SlugField()
+    #Utility fields, slug non obbligatorio ma utile per la gestione dei dettagli articolo
+    slug = models.SlugField(blank=True, null=True)
     NSCARDAT = models.DateTimeField(blank=True, null=True)
     NSMODDAT = models.DateTimeField(blank=True, null=True)
 
@@ -241,9 +386,9 @@ class Articoli(models.Model):
         # se non ho il codice uso la descrizione seguita da un id che disambigua!
         if self.ARCODICE is None:
             self.ARCODICE = '{}_{}'.format(self.ARDESCRI, str(uuid4()).split('-')[4])
-            self.slug = slugify('{} {}'.format(self.ARDESCRI, self.ARDESSUP))
 
-        self.slug = slugify(self.ARCODICE)
+        if not self.slug:
+            self.slug = slugify(self.ARCODICE)
         self.NSMODDAT = timezone.localtime(timezone.now())
 
         super(Articoli, self).save(*args, **kwargs)
@@ -337,6 +482,20 @@ class Causdocu(models.Model):
     CDTIPDOC = models.CharField(null=True, blank=True, max_length=2, default='OV')
     CDCAUMAG = models.ForeignKey(Causmaga, blank=True, null=True, on_delete=models.RESTRICT) # on_update non esiste in Django
 
+    CDTIPINT = models.CharField(null=True, blank=True, max_length=3,   
+        #il primo valore è quello registrato a database, il secondo quello mostrato a video  
+        choices=[
+            (CCATCLI,"Cliente" ),
+            (CCATFOR,"Fornitore" ),
+            (None,"No" ),
+        ])
+
+    CDINTOBB = models.SmallIntegerField(null=True, blank=True, default=1) # se 1 intestatario obbligatorio
+    CDGESPAG = models.SmallIntegerField(null=True, blank=True, default=1) # se 1 gestione pagamenti
+    CDNUMAUT= models.SmallIntegerField(null=True, blank=True, default=0) # se 1 numerazione automatica  
+
+    CDGESIVA = models.SmallIntegerField(null=True, blank=True, default=1) # se 1 gestione IVA 
+
     #Utility fields
     slug = models.SlugField()
 
@@ -373,6 +532,18 @@ class Ord_Mast(models.Model):
     DOCODUTE = models.ForeignKey(User, on_delete=models.PROTECT, related_name='operatore' )    
     SYNC_UPDATE = models.SmallIntegerField(null=True, blank=True, default=1, choices=sync_status) ; # in realta 1(da sincronizzare) o 0 (sincronizzato)   
     
+    DOCODPAG = models.ForeignKey(PAGAMENTI, blank=True, null=True, on_delete=models.RESTRICT) # on_update non esiste in Django
+
+    DOLORIVA = models.CharField(null=True, blank=True, max_length=1, default='N') # flag se documento con prezzi al lordo IVA
+
+    DORITPIM = models.DecimalField(null=True, blank=True, max_digits=5, decimal_places=2, default=0) # Ritenuta d'acconto percentuale applicata all'imponibile
+    DORITPER = models.DecimalField(null=True, blank=True,  max_digits=5, decimal_places=2, default=0) # Ritenuta d'acconto percentuale applicata all'imposta
+    DORITACC = models.DecimalField(null=True, blank=True, max_digits=20, decimal_places=2, default=0) # Ritenuta d'acconto calcolata sul totale documento
+
+    DOIMPACC = models.DecimalField(null=True, blank=True, max_digits=20, decimal_places=2, default=0) # Importo Acconto
+    DOIMPFIN = models.DecimalField(null=True, blank=True, max_digits=20, decimal_places=2, default=0) # Importo Finanziamento
+
+
     #Utility fields
     slug = models.SlugField()
 
@@ -395,8 +566,142 @@ class Ord_Mast(models.Model):
 
     @property
     def TotaleDocumento(self):
-        total = Ord_dett.objects.filter(DOCODICE=self.DOCODICE).aggregate(totale=Sum(F('DOPREZZO')*F('DOQTAUM1')))['totale']
-        return total
+        return Ord_dett.objects.filter(DOCODICE=self.DOCODICE).aggregate(totale=Sum(F('DOPREZZO')*F('DOQTAUM1')))['totale']
+
+    # ritorna castelletoIVA e totaliDocumento e importo ritenute...
+    def totale_fattura(self):
+        """Calcola il castelletto IVA del documento.
+
+        Il risultato contiene un elemento per ogni codice IVA presente nelle
+        righe del documento, con imponibile, imposta e base per la ritenuta.
+        """
+        riepiloghi = {}
+        totaliDocumento =datiRiepilogo.totaliDocumento()
+
+        totDocumento=0
+        totaleImposta=0
+        totImponibile=0
+        TotImponibileEsente=0
+        totbolli=0
+
+        ritenuteCalcolate = 0
+
+        dettagli = self.ord_dett_set.select_related(
+            'DOCODART__ARCODIVA'
+        ).all()
+
+        for dettaglio in dettagli:
+            if dettaglio.DOCODART is None:
+                continue
+
+            codice_iva = dettaglio.DOCODART.ARCODIVA
+            codice = codice_iva.CICODICE if codice_iva else ''
+            aliquota = codice_iva.CIPERIVA if codice_iva else Decimal('0')
+            valore_riga = (
+                (dettaglio.DOPREZZO or Decimal('0'))
+                * (dettaglio.DOQTAUM1 or Decimal('0'))
+            )
+
+            if codice not in riepiloghi:
+                if len(riepiloghi) >= 6:
+                    raise ValueError(
+                        'Sono presenti più di 6 percentuali IVA diverse.'
+                    )
+
+                riepiloghi[codice] = DatiRiepilogo(
+                    codice_iva=codice,
+                    percentuale_iva=aliquota,
+                    esente=codice_iva.CIESENTE == 'S' if codice_iva else False,
+                    rev_charge=codice_iva.CIREVCHA == 1 if codice_iva else False,
+                    split_payment=codice_iva.CISPLPAY == 1 if codice_iva else False,
+                )
+
+            riepilogo = riepiloghi[codice]
+            riepilogo.imponibile += valore_riga
+            riepilogo.imponibile_calcolo_ritenuta += valore_riga
+
+        for riepilogo in riepiloghi.values():
+            imponibile_originale = riepilogo.imponibile
+
+            if self.DOLORIVA == 'S' and riepilogo.percentuale_iva != 0:
+                riepilogo.imponibile = funzioni.scorporo(
+                    imponibile_originale,
+                    riepilogo.percentuale_iva,
+                    2,
+                )
+            else:
+                riepilogo.imponibile = imponibile_originale.quantize(
+                    Decimal('0.01'), rounding=ROUND_HALF_EVEN
+                )
+
+            riepilogo.imponibile_calcolo_ritenuta = (
+                riepilogo.imponibile_calcolo_ritenuta.quantize(
+                    Decimal('0.01'), rounding=ROUND_HALF_EVEN
+                )
+            )
+            if riepilogo.rev_charge:
+                riepilogo.imposta = Decimal('0.00')
+            elif self.DOLORIVA == 'S':
+                riepilogo.imposta = (
+                    imponibile_originale - riepilogo.imponibile
+                ).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
+            else:
+                riepilogo.imposta = (
+                    riepilogo.imponibile
+                    * riepilogo.percentuale_iva
+                    / Decimal('100')
+                ).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
+            totaleImposta=totaleImposta+riepilogo.imposta;
+            totImponibile=totImponibile+ riepilogo.imponibile;
+
+            # aggiungo al totale esente l'imposta esente (se voce IVA esente).
+            if riepilogo.esente:
+                TotImponibileEsente=TotImponibileEsente+riepilogo.imponibile
+
+            # sommo totale imponibile ed imposta (imposta solo se non è splitpayment)
+            totDocumento= totDocumento+ riepilogo.imponibile
+            if not riepilogo.split_payment:
+                totDocumento= totDocumento+ riepilogo.imposta;
+
+
+        # Calcolo della ritenuta. DOTIPRIG non e' ancora presente in Ord_dett,
+        # quindi per ora tutte le righe contribuiscono alla base imponibile.
+        base_ritenuta = sum(
+            (riepilogo.imponibile_calcolo_ritenuta for riepilogo in riepiloghi.values()),
+            Decimal('0'),
+        )
+
+        cassa_percentuale = (
+            self.DOCODINT.NOCASSA
+            if self.DOCODINT is not None
+            else Decimal('0')
+        ) or Decimal('0')
+        if cassa_percentuale > 0:
+            cassa = (
+                base_ritenuta * cassa_percentuale / Decimal('100')
+            ).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
+            # alla base di calcolo della ritenuta va aggiunta la cassa nel caso di INPS Gestione Separata (Flag INPS su fornitore)
+            #base_ritenuta += cassa (iif(bCassaINPS,valoreRigoCassa,0))
+
+        if self.DORITPER is not None and self.DORITPIM is not None and self.DORITPER != 0 and self.DORITPIM != 0:
+            base_ritenuta = (
+                base_ritenuta * self.DORITPIM / Decimal('100')
+            ).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
+            ritenuteCalcolate = (
+                base_ritenuta * self.DORITPER / Decimal('100')
+            ).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
+        else:
+            ritenuteCalcolate = Decimal('0.00')
+
+        totaliDocumento.totDocumento= totDocumento-ritenuteCalcolate;
+        totaliDocumento.totIMposta=totaleImposta;
+        totaliDocumento.totImponibileEsente=TotImponibileEsente;
+        totaliDocumento.totBolli=totbolli;
+        totaliDocumento.totRitenuta=ritenuteCalcolate;
+
+
+        return list(riepiloghi.values()), totaliDocumento
+
                 
     # booleano true evaso!
     @property
@@ -416,11 +721,11 @@ class Ord_Mast(models.Model):
 
     @property
     def articoliDocumento(self):
-        groupConcat = Ord_dett.objects.filter(DOCODICE=self.DOCODICE).values('DOCODICE').annotate(value=GroupConcat("DOCODART",True)).annotate(somma=Sum("DOQTAUM1"))
+        groupConcat = Ord_dett.objects.filter(DOCODICE=self.DOCODICE).values('DOCODICE').annotate(value=GroupConcat("DOCODART",True)).annotate(somma=Sum("DOQTAUM1", default=0))
         if groupConcat.exists():
             return '{} - {}'.format(int(groupConcat[0]['somma']) , groupConcat[0]['value'])
         else:
-            return ""  
+            return "" 
     
 class GroupConcat(Aggregate):
     function = 'GROUP_CONCAT'
@@ -436,6 +741,42 @@ class GroupConcat(Aggregate):
             output_field=CharField(),
             **extra
         )  
+
+# scadenze documento
+class Scadenze(models.Model):
+    SCCODICE = models.ForeignKey(Ord_Mast, blank=True, null=True, on_delete=models.CASCADE) # on_update non esiste in Django
+    SCNUMSCA = models.IntegerField(null=True, blank=True, default=0)
+    SCDATSCA = models.DateField(blank=True, null=True)
+    SCIMPSCA = models.DecimalField(null=True, blank=True, decimal_places=5,max_digits=20,default=0)
+    # se a S pagato
+    SCPAGATA = models.CharField(null=True, blank=True, default='N', max_length=1)
+    # on_update non esiste in Django
+    SCTIPPAG = models.ForeignKey(MODPAGAM, blank=True, null=True, on_delete=models.RESTRICT) 
+
+    SCDATPAG = models.DateField(blank=True, null=True)
+    # sarebbe SC__NOTE ma django non accetta l'underscore
+    SCNOTE = models.TextField(null=True, blank=True)    
+
+class Rivadett(models.Model):
+    """Dettaglio degli importi per codice IVA.
+
+    La tabella esistente ha una chiave composta (RICODICE, RICODIVA),
+    non supportata nativamente da Django 4.2.
+    """
+    RICODICE = models.ForeignKey(Ord_Mast,  on_delete=models.CASCADE)
+    RICODIVA = models.ForeignKey(Codiciva,  on_delete=models.RESTRICT) # on_update non esiste in Django
+    RIIMPONI = models.DecimalField(
+        max_digits=20,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    RIIMPOST = models.DecimalField(
+        max_digits=20,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
 
 # dettaglio documenti (la chiave multipla non è gestita in Django per cui ha l'id a database)
 # a codice si utilizza DOCODICE
@@ -488,6 +829,8 @@ class Ord_dett(models.Model):
 
 # da trasformare in Azienda da Emporio Open
 class Settings(models.Model):
+    # per avere un solo record...
+    singleton = models.BooleanField(default=True, primary_key=True, editable=False)
 
     #Basic Fields
     clientName = models.CharField(null=True, blank=True, max_length=200)
@@ -499,12 +842,33 @@ class Settings(models.Model):
     emailAddress = models.CharField(null=True, blank=True, max_length=100)
     taxNumber = models.CharField(null=True, blank=True, max_length=20)
 
+    # gestione documenti
+    AZPAGDEF = models.ForeignKey(PAGAMENTI, blank=True, null=True, on_delete=models.RESTRICT) # on_update non esiste in Django
+
 
     #Utility fields
     uniqueId = models.CharField(null=True, blank=True, max_length=100)
     slug = models.SlugField()
     date_created = models.DateTimeField(blank=True, null=True)
     last_updated = models.DateTimeField(blank=True, null=True)
+
+    # carico in cache i settings...
+    @classmethod
+    def get_settings(cls):
+        key = "app_settings"
+        settings = cache.get(key)
+        if settings is None:
+            settings, created = cls.objects.get_or_create(pk=True)
+            cache.set(key, settings, timeout=60 * 60)  # la cache dura un'ora
+        return settings
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(singleton=True),
+                name='impostazioni_singleton'
+            )
+        ]
 
 
     def __str__(self):
@@ -516,6 +880,8 @@ class Settings(models.Model):
 
 
     def save(self, *args, **kwargs):
+        # un solo record con singleton a true
+        self.singleton = True
         if self.date_created is None:
             self.date_created = timezone.localtime(timezone.now())
         if self.uniqueId is None:
@@ -526,4 +892,6 @@ class Settings(models.Model):
         self.last_updated = timezone.localtime(timezone.now())
 
         super(Settings, self).save(*args, **kwargs)
+        # forzo di ricaricare la cache al salvataggio delle impostazioni
+        cache.delete("app_settings")
 

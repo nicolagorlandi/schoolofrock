@@ -8,6 +8,12 @@
 <form class="" action="#" method="post" enctype="multipart/form-data">
   {% csrf_token %}
 
+  {% if form.errors %}
+  <div class="alert alert-danger">
+    {{ form.errors }}
+  </div>
+{% endif %}
+
 
 <div class="modal-header border-bottom-0">
   <h5 class="modal-title">{% trans "Articolo" %}</h5>

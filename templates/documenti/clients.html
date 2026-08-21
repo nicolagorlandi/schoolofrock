@@ -11,11 +11,26 @@
       <div class="btn-group-lg me-2">
         {% if perms.documenti.Manager_CLienti %}
         <!-- Se utente con il ruolo di manager articoli aggiungo la possibilità di aggiungere un articolo -->
-        <a class="btn btn-primary" href="{% url 'add_Cliente' %}" role="button">{% trans "Aggiungi Cliente" %}</a> 
+        <a class="btn btn-primary" href="{% url 'add_Cliente' tipo=tipo %}" role="button">
+          
+          {% if tipo == CCATCLI %}
+            {% trans "Aggiungi Cliente" %}
+          {% else %}
+            {% trans "Aggiungi Fornitore" %}
+          {% endif %}        
+        
+        </a> 
         {% endif %}            
       </div>
     </div>
-    <h1 class="h2">{% trans "Clienti" %}</h1>
+    <h1 class="h2">
+      {% if tipo == CCATCLI %}
+        {% trans "Clienti" %}
+      {% else %}
+        {% trans "Fornitori" %}
+      {% endif %}
+      
+    </h1>
   </div>
 
 <div class="table-responsive">
@@ -40,9 +55,9 @@
         <!-- Se utente con il ruolo di manager nominativi aggiungo la possibilità di eliminare o modificare un articolo -->
         <td>
           <div class="btn-group-lg" role="group" aria-label="{% trans "Azioni" %}">
-              <a class="btn btn-primary far fa-edit" href="{% url 'edit_Cliente' client.pk %}" role="button"></a>     
+              <a class="btn btn-primary far fa-edit" href="{% url 'edit_Cliente' tipo=tipo pk=client.pk %}" role="button"></a>     
               <a class="confirm-modal btn btn-danger fas fa-trash-alt" 
-              href="{% url 'delete_Cliente' client.pk %}" 
+              href="{% url 'delete_Cliente' tipo=tipo pk=client.pk %}" 
               title="Delete" 
               data-bs-toggle="modal" 
               data-bs-target="#confirmDeleteModal" 

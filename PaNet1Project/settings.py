@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'django_bootstrap5',
     'mathfilters',
+    'wkhtmltopdf',
     'documenti',      
 ]
 
@@ -169,3 +170,10 @@ INTERNAL_IPS = [
 SELECT2_OPTIONS = {
     'allowClear': False,
 }
+
+# questo percorso ha senso solo in windows. Per pythonAnywhere va impostato a (WKHTMLTOPDF_CMD = '/usr/bin/wkhtmltopdf' dove è gia installato)
+WKHTMLTOPDF_CMD = 'C:/Program Files/wkhtmltopdf/bin/wkhtmltopdf.exe'
+
+# gestione documenti (emporio frame)
+CCATCLI='CLI'
+CCATFOR='FOR'

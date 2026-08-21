@@ -19,33 +19,105 @@
       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
     </div>
 
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger">
+            {{ form.non_field_errors  }}
+        </div>
+    {% endif %}
+
+        {% if form.errors %}
+        <div class="alert alert-danger">
+            {{ form.errors  }}
+        </div>
+    {% endif %}
+
   <div class="modal-body py-0">
     <div class="row">
-      <div class="col-3">
+      <div class="col-4">
         {{ form.NOCODICE|bootstrap }}
       </div>      
-        <div class="col-5">
+        <div class="col-4">
           {{ form.NOCOGNOM|bootstrap }}
         </div>
         <div class="col-4">
           {{ form.NO_NOME|bootstrap }}
         </div>
+         
+    </div>
+     <div class="row">
+        <div class="col-6">
+        {{ form.NORAGSOC|bootstrap }}
+    </div>  
         <div class="col-2">
             {{ form.NOTELEF1|bootstrap }}
         </div>
-        <div class="col-3">
+        <div class="col-4">
           {{ form.NO_EMAIL|bootstrap }}
       </div>    
+
+     </div>
+     <div class="row">
+      {# Sezione indirizzo #}
+        <div class="col-3">
+          {{ form.NO_CITTA|bootstrap }}
+        </div>
+    
+      <div class="col-4">
+        {{ form.NOINDIRI|bootstrap }}
+      </div>      
+        <div class="col-1">
+          {{ form.NONUMCIV|bootstrap }}
+        </div>
+
+        <div class="col-2">
+            {{ form.NOPROVIN|bootstrap }}
+        </div>
+        <div class="col-2">
+          {{ form.NOINDCAP|bootstrap }}
+      </div>              
+    </div>
+<div class="row">
+      {# Sezione dati fiscali #}
+        <div class="col-3">
+          {{ form.NOCODFIS|bootstrap }}
+        </div>
+    
       <div class="col-3">
-        {{ form.NORAGSOC|bootstrap }}
-    </div>           
+        {{ form.NOPARIVA|bootstrap }}
+      </div>      
+        <div class="col-1">
+          {{ form.NONAZION|bootstrap }}
+        </div>
+
+        <div class="col-3">
+            {{ form.NONOMPEC|bootstrap }}
+        </div>
+        <div class="col-2">
+          {{ form.NOCODSDI|bootstrap }}
+      </div>              
     </div>
 
+    {% if tipo == CCATFOR %}
+    {# Nel caso di fornitori aggiungo la parte di cassa e ritenuta #}
+     <div class="row">
+      <div class="col-3">
+        {{ form.NORITPIM|bootstrap }}
+      </div>      
+        <div class="col-5">
+          {{ form.NORITPER|bootstrap }}
+        </div>
+        <div class="col-4">
+          {{ form.NOCASSA|bootstrap }}
+        </div>          
+    </div>
+    {% endif %}
   </div>
-  <div class="modal-footer flex-column border-top-0">
-    <button type="submit" class="btn btn-lg btn-primary w-100 mx-0 mb-2">{% trans "Salva" %}</button>
-    <button type="button" onClick="javascript:history.go(-1);" class="btn btn-lg btn-light w-100 mx-0" data-bs-dismiss="modal">{% trans "Annulla" %}</button>
-  </div>
+  <div class="row">
+    <div class="col-3">
+    <button type="submit" class="btn btn-lg btn-primary mx-0">{% trans "Salva" %}</button>
+    <button type="button" onClick="javascript:history.go(-1);" class="btn btn-lg btn-light mx-0" data-bs-dismiss="modal">{% trans "Annulla" %}</button>
+    </div>
+ </div>
 
   </form>
 

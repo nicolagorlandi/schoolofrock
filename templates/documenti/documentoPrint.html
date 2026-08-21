@@ -1,0 +1,93 @@
+{% load static %}
+{% load bootstrap %}
+{% load i18n %}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ccc; padding: 4px; }
+        th { background: #eee; }
+    </style>
+</head>
+<body>
+
+<h2>{% trans "Ordine" %} {{ ordine.DONUMORD }}</h2>
+<p>{% trans "Intestatario:" %} {{ ordine.DOCODINT }}</p>
+<p>{% trans "Data:" %} {{ ordine.DODATORD }}</p>
+
+<h3>Dettagli</h3>
+<table>
+    <thead>
+        <tr>
+            <th>{% trans "Codice" %}</th>
+            <th>{% trans "Descrizione" %}</th>
+            <th>{% trans "Qta" %}</th>
+            <th>{% trans "Prezzo" %}</th>
+            <th>{% trans "Totale" %}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for det in dettagli %}
+        <tr>
+            <td>{{ det.DOCODART }}</td>
+            <td>{{ det.DODESART }}</td>
+            <td>{{ det.DOQTAUM1 }}</td>
+            <td>{{ det.DOPREZZO }}</td>
+            <td>{{ det.DOQTAUM1|floatformat:2|add:det.DOPREZZO }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3>{% trans "IVA" %}</h3>
+<table>
+    <thead>
+        <tr>
+            <th>{% trans "Codice" %}</th>
+            <th>{% trans "Descrizione" %}</th>
+            <th>{% trans "Imponibile" %}</th>
+            <th>{% trans "Imposta" %}</th>
+            <th>{% trans "Aliquota" %}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for iva in castellettoIVA %}
+        <tr>
+            <td>{{ iva.RICODIVA.CICODICE }}</td>
+            <td>{{ iva.RICODIVA.CIDESCRI }}</td>
+            <td>{{ iva.RIIMPONI }}</td>
+            <td>{{ iva.RIIMPOST }}</td>
+            <td>{{ iva.RICODIVA.CIPERIVA }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3>{% trans "Pagamento" %}</h3>
+<table>
+    <thead>
+        <tr>
+            <th>{% trans "#" %}</th>
+            <th>{% trans "Scade il" %}</th>
+            <th>{% trans "Importo" %}</th>
+            <th>{% trans "Modalità" %}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for scadenza in scadenze %}
+        <tr>
+            <td>{{ scadenza.SCNUMSCA }}</td>
+            <td>{{ scadenza.SCDATSCA }}</td>
+            <td>{{ scadenza.SCIMPSCA }}</td>
+            <td>{{ scadenza.SCTIPPAG.MPCODICE }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+</body>
+</html>

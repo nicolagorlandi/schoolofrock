@@ -36,10 +36,10 @@ path('addArticolo/', login_required(views.Articoli_add.as_view()), name='add_Art
 path('<str:pk>/editArticolo/', login_required(views.Articoli_edit.as_view()), name='edit_Articolo'),    
 path('<str:articolo_id>/deleteArticolo/',login_required(views.Articolo_delete), name='delete_Articolo'),   
 
-path('clients',login_required(views.clients), name='clients'),
-path('addCliente/', login_required(views.Clienti_add.as_view()), name='add_Cliente'),  
-path('<str:pk>/editCliente/', login_required(views.Clienti_edit.as_view()), name='edit_Cliente'),    
-path('<str:pk>/deleteCliente/',login_required(views.Clienti_delete), name='delete_Cliente'),   
+path('clients/<slug:tipo>/',login_required(views.clients), name='clients'),
+path('addCliente/<slug:tipo>/', login_required(views.Clienti_add.as_view()), name='add_Cliente'),  
+path('editCliente/<slug:tipo>/<str:pk>/', login_required(views.Clienti_edit.as_view()), name='edit_Cliente'),    
+path('deleteCliente/<slug:tipo>/<str:pk>/',login_required(views.Clienti_delete), name='delete_Cliente'),   
 
 path('<str:causale>/documenti',views.documenti, name='documenti'),
 path('<str:causaleSelezionata>/addordine/', login_required(views.CreateDocumentoView.as_view()), name='add_ordine'), 
@@ -51,17 +51,20 @@ path('<str:causaleSelezionata>/<str:gruppoSelezionato>/caricaordine/', login_req
 path('cartItemSelection/',login_required(views.cartItemsSelection.as_view()), name='cartItemsSelection'),
 path('cart/', login_required(views.view_cart), name='view_cart'),
 path('add', login_required(views.add_to_cart), name='add_to_cart'),
-path('remove/<int:id>/', login_required(views.remove_from_cart), name='remove_from_cart'),
+path('remove/<str:id>/', login_required(views.remove_from_cart), name='remove_from_cart'),
 path('fromCartToOrder/', login_required(views.fromCartToOrder), name='fromCartToOrder'),
 path('uploadDeskTooCSV/', login_required(views.upload_file), name='uploadDeskTooCSV'),
+path("stampaDocumento/<int:pk>/", views.ordine_pdf, name="stampaDocumento"),
 
 # lettura dati articoli cambio articoli dettaglio documenti.
 re_path(r'^ajax/leggiPrezzoDescrizioneArticolo/$', views.leggiPrezzoDescrizioneArticolo, name='leggiPrezzoDescrizioneArticolo'),
+re_path(r'^ajax/leggiintestatario/$', views.leggiintestatario, name='leggiintestatario'),
 # auto completamento articoli
 re_path(r'^articoli-autocomplete/$', ArticoliAutocomplete.as_view(), name='articoli-autocomplete'),
  
 # auto completamento nominativi
 re_path(r'^nominativi-autocomplete/$', nominativi_autocomplete.as_view(), name='nominativi-autocomplete'),
+
 
 ]
 
