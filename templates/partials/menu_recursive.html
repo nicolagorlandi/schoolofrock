@@ -15,10 +15,18 @@
         <!-- Voce singola -->
         <div class="dropdown-item-wrapper">
             {% if item.url_name %}
-                <a class="dropdown-item" href="{% url item.url_name %}">
-                    {% if item.icon %}<i class="{{ item.icon }}"></i>{% endif %}
-                    {{ item.label }}
-                </a>
+
+                {% if item.tipoDocumento %}
+                    <a class="dropdown-item" href="{% url item.url_name item.tipoDocumento  %}">
+                        {% if item.icon %}<i class="{{ item.icon }}"></i>{% endif %}
+                        {{ item.label }}
+                    </a>
+                {% else %}
+                    <a class="dropdown-item" href="{% url item.url_name %}">
+                        {% if item.icon %}<i class="{{ item.icon }}"></i>{% endif %}
+                        {{ item.label }}
+                    </a>
+                {% endif %}
             {% else %}
                 <span class="dropdown-item">
                     {% if item.icon %}<i class="{{ item.icon }}"></i>{% endif %}

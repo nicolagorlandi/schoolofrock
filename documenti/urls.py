@@ -42,12 +42,12 @@ path('addCliente/<slug:tipo>/', login_required(views.Clienti_add.as_view()), nam
 path('editCliente/<slug:tipo>/<str:pk>/', login_required(views.Clienti_edit.as_view()), name='edit_Cliente'),    
 path('deleteCliente/<slug:tipo>/<str:pk>/',login_required(views.Clienti_delete), name='delete_Cliente'),   
 
-path('<str:causale>/documenti',views.documenti, name='documenti'),
-path('<str:causaleSelezionata>/addordine/', login_required(views.CreateDocumentoView.as_view()), name='add_ordine'), 
+path('<str:TipoDocumentoSelezionato>/documenti',views.documenti, name='documenti'),
+path('<str:TipoDocumentoSelezionato>/addordine/', login_required(views.CreateDocumentoView.as_view()), name='add_ordine'), 
 path('<int:order_id>/editordine/', login_required(views.UpdateDocumentoView.as_view()), name='edit_ordine'), 
 path('<int:order_id>/deleteordine/', login_required(views.deleteOrdine), name='delete_ordine'),
 path('<int:order_id>/evade_ordine/', login_required(views.evadeOrdine), name='evade_ordine'),
-path('<str:causaleSelezionata>/<str:gruppoSelezionato>/caricaordine/', login_required(views.formset_Articoli), name='carica_Ordine'),
+path('<str:TipoDocumentoSelezionato>/<str:gruppoSelezionato>/caricaordine/', login_required(views.formset_Articoli), name='carica_Ordine'),
 
 path('cartItemSelection/',login_required(views.cartItemsSelection.as_view()), name='cartItemsSelection'),
 path('cart/', login_required(views.view_cart), name='view_cart'),

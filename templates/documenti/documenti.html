@@ -10,15 +10,15 @@
 
   <div class="justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">        
     <button class="btn btn-info" type="button" data-bs-toggle="collapse" data-bs-target="#pannelloRicerca" aria-expanded="true" aria-controls="pannelloRicerca">
-      {% trans "Ricerca in" %} {{descrizioneCausale}}
+      {% trans "Ricerca in" %} {{descrizioneDocumento}}
       <span class="badge badge-danger">{{ filter.qs.count }}</span>
     </button>    
     <!-- Se utente con il ruolo di manager articoli aggiungo la possibilità di aggiungere un articolo -->        
     {% if perms.documenti.Manager_Ordini %}          
-    <a class="btn btn-secondary" href="{% url 'add_ordine' causaleSelezionata %}" role="button">{% trans "Nuovo" %} {{descrizioneCausale}}</a>                   
+    <a class="btn btn-secondary" href="{% url 'add_ordine' TipoDocumentoSelezionato %}" role="button">{% trans "Nuovo" %} {{descrizioneDocumento}}</a>                   
     {% for gruppo in gruppi %}
     <!-- Se utente con il ruolo di manager articoli aggiungo la possibilità di aggiungere un articolo -->
-    <a class="btn btn-success" href="{% url 'carica_Ordine' causaleSelezionata gruppo.pk %}" role="button">{% trans "Crea Veloce "%}{{ gruppo.GRDESCRI }}</a>   
+    <a class="btn btn-success" href="{% url 'carica_Ordine' TipoDocumentoSelezionato gruppo.pk %}" role="button">{% trans "Crea Veloce "%}{{ gruppo.GRDESCRI }}</a>   
     {% endfor %}  
     {% endif %}            
   </div>
@@ -74,7 +74,7 @@
           <div class="btn-group-lg" role="group" aria-label="{% trans "Azioni" %}">
               <a class="btn btn-primary far fa-edit" href="{% url 'edit_ordine' ord_mast_.pk %}" role="button"></a>     
               <a class="btn btn-info far fa-print" href="{% url 'stampaDocumento' pk=ord_mast_.pk %}" role="button"></a> 
-                {% if causaleSelezionata == "OV" %}
+                {% if TipoDocumentoSelezionato == "OV" %}
                   {% if not ord_mast_.DocumentoEvaso %}    
                   <a class="confirm-modal btn btn-danger fas fa-trash-alt" 
                   href="{% url 'delete_ordine' ord_mast_.pk %}"                 

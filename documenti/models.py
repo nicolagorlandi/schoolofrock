@@ -680,7 +680,7 @@ class Ord_Mast(models.Model):
     DOIMPACC = models.DecimalField(null=True, blank=True, max_digits=20, decimal_places=2, default=0) # Importo Acconto
     DOIMPFIN = models.DecimalField(null=True, blank=True, max_digits=20, decimal_places=2, default=0) # Importo Finanziamento
 
-
+    DOTIPDOC = models.CharField(null=True, blank=True, max_length=2) # tipo base documento (OR,FA,FV...)
     #Utility fields
     slug = models.SlugField()
 

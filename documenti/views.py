@@ -84,7 +84,7 @@ def login(request):
             ordVe = Causdocu.objects.filter(CD_CICLO='V').filter(CDTIPDOC='OV')
             if ordVe.exists():
                 # per ora prendo il primo poi gestiamo con flag!
-                return redirect('documenti',causale=ordVe.first().CDCODICE)
+                return redirect('documenti',TipoDocumentoSelezionato=ordVe.first().CDCODICE)
             else:
                 return redirect('dashboard')
         else:
@@ -313,11 +313,11 @@ def logout(request):
     return redirect('login')
 
 @login_required
-def documenti(request, causale):
+def documenti(request, TipoDocumentoSelezionato):
     context = {}
-    ord_mast = Ord_Mast.objects.filter(DOCODCAU=causale)
-    context['causaleSelezionata'] = causale    
-    context['descrizioneCausale'] = Causdocu.objects.get(CDCODICE=causale).CDDESCRI
+    ord_mast = Ord_Mast.objects.filter(DOTIPDOC=TipoDocumentoSelezionato)
+    context['TipoDocumentoSelezionato'] = TipoDocumentoSelezionato    
+    context['descrizioneDocumento'] = Doctipba.objects.get(DTCODICE=TipoDocumentoSelezionato).DTDESCRI
     context['filter'] = Ord_MastFilter(request.GET, queryset=ord_mast)
     # aggiungo i gruppi per i pulsanti di apertura
     context['gruppi'] = Grmemast.objects.filter(GRCARRAP=1).order_by('-GRDESCRI')
@@ -326,7 +326,7 @@ def documenti(request, causale):
     
 
 # gestione elenco articoli da caricare (carica rapido)
-def formset_Articoli(request,causaleSelezionata, gruppoSelezionato):
+def formset_Articoli(request,TipoDocumentoSelezionato, gruppoSelezionato):
 
     with connection.cursor() as cursor:
         cursor.execute("""CREATE temporary table documenti_tempdettagliodoc AS 
@@ -408,7 +408,7 @@ def formset_Articoli(request,causaleSelezionata, gruppoSelezionato):
                     ord_mast_.intestatario = intestatario 
                     # di base la serie è calcolata con l'anno della data.
                     ord_mast_.DOALFORD = str( ord_mast_.DODATORD.year)
-                    ord_mast_.DOCODCAU = Causdocu.objects.get(CDCODICE=causaleSelezionata);
+                    ord_mast_.DOCODCAU = Causdocu.objects.get(CDCODICE=TipoDocumentoSelezionato);
                     # leggo il pagamento di default...
                     ord_mast_.DOCODPAG = settings.get_settings().PAGAMENTO_DEFAULT
 
@@ -437,14 +437,14 @@ def formset_Articoli(request,causaleSelezionata, gruppoSelezionato):
 
                     return redirect('/doc/{}/editordine/'.format(codice))   
                 else:
-                    return redirect('/doc/{}/documenti'.format(causaleSelezionata))  
+                    return redirect('/doc/{}/documenti'.format(TipoDocumentoSelezionato))  
             else:
                 for form in formset:
                     print("Form Error:", form.errors)                
-                return render(request, "documenti/caricaDocumento.html", {"formset": formset, "form_nominativo":form_nominativo, "causale":Causdocu.objects.get(CDCODICE=causaleSelezionata)})                    
+                return render(request, "documenti/caricaDocumento.html", {"formset": formset, "form_nominativo":form_nominativo, "causale":Causdocu.objects.get(CDCODICE=TipoDocumentoSelezionato)})                    
         else:
             formset = TempArticoliFormSet()
-            return render(request, "documenti/caricaDocumento.html", {"formset": formset,  "form_nominativo":form_nominativo, "causale":Causdocu.objects.get(CDCODICE=causaleSelezionata)})
+            return render(request, "documenti/caricaDocumento.html", {"formset": formset,  "form_nominativo":form_nominativo, "causale":Causdocu.objects.get(CDCODICE=TipoDocumentoSelezionato)})
 
 # autocomplete per articoli basa la ricerca per descrizione e codice
 class ArticoliAutocomplete(autocomplete.Select2QuerySetView):
@@ -565,7 +565,7 @@ class DocumentoValidationMixin:
         return reverse(
             'documenti',
             kwargs={
-                'causale': self.object.DOCODCAU.CDCODICE                
+                'TipoDocumentoSelezionato': self.object.DOCODCAU.CDCODICE.CDTIPDOC                
             }
         )
 
@@ -694,10 +694,10 @@ class CreateDocumentoView(DocumentoValidationMixin, generic.CreateView):
         # Call the base implementation first to get a context
         context = super().get_context_data(**kwargs)
         
-        if 'causaleSelezionata' in self.kwargs.keys():
-            context['causaleSelezionata'] =   Causdocu.objects.get(CDCODICE=self.kwargs['causaleSelezionata']);     
+        if 'TipoDocumentoSelezionato' in self.kwargs.keys():
+            context['TipoDocumentoSelezionato'] =   Causdocu.objects.get(CDCODICE=self.kwargs['TipoDocumentoSelezionato']);     
         else:
-            context['causaleSelezionata'] =  None;     
+            context['TipoDocumentoSelezionato'] =  None;     
 
         context['DocumentoEvaso'] =  False;                         
     
@@ -722,12 +722,13 @@ class CreateDocumentoView(DocumentoValidationMixin, generic.CreateView):
         #ord_mast_.intestatario = contatti.objects.filter( pk= contacts_id)[0] 
         # di base la serie è calcolata con l'anno della data.
         causale = None
-        if 'causaleSelezionata' in self.kwargs.keys():
-            causale = Causdocu.objects.get(CDCODICE=self.kwargs['causaleSelezionata'])
+        if 'TipoDocumentoSelezionato' in self.kwargs.keys():
+            initial['DOTIPDOC'] = self.kwargs['TipoDocumentoSelezionato']
+            causale = Causdocu.objects.get(CDTIDOC=initial['DOTIPDOC'])
                
             # se causale prevede numerazione automatica allora calcolo il numero, altrimenti lascio a 0 per la compilazione manuale.
             if causale:
-                initial['DOCODCAU'] = causale  
+                initial['DOCODCAU'] = causale.First  
                 if causale.CDNUMAUT==1:
                     anno = str( data.year)
                     initial['DOALFORD'] = anno #per ora la serie è calcolata con l'anno della data (poi sfumeremo con le varie tiplogie)
@@ -776,10 +777,10 @@ class UpdateDocumentoView(DocumentoValidationMixin, generic.UpdateView):
         context = super().get_context_data(**kwargs)
         
         if (Ord_Mast.objects.filter(pk=self.object.pk).count()==0):
-            context['causaleSelezionata'] =  None;
+            context['TipoDocumentoSelezionato'] =  None;
         else:
             doc = Ord_Mast.objects.get(pk=self.object.pk)
-            context['causaleSelezionata'] =  doc.DOCODCAU; 
+            context['TipoDocumentoSelezionato'] =  doc.DOCODCAU; 
             context['DocumentoEvaso'] =  doc.DocumentoEvaso; 
 
         return context     
