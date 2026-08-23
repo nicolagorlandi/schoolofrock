@@ -6,7 +6,7 @@ from django_filters import ChoiceFilter
 from django.utils.translation import gettext as _
 
 from .models import *
-from django.utils.translation import gettext as _
+
 
 def _K6truncate(dt):
     return dt.date()

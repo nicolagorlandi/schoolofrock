@@ -16,4 +16,26 @@ $(document).on('click', '#confirmButtonModal', function () {
   window.location = urlPulsante;
 });
 
+document.addEventListener('DOMContentLoaded', function () {
+
+    document.querySelectorAll('.dropdown-submenu > a.dropdown-toggle').forEach(function (element) {
+
+        element.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            let parent = this.parentElement;
+
+            // Chiude altri submenu allo stesso livello
+            parent.parentElement.querySelectorAll('.dropdown-submenu.show').forEach(function (openItem) {
+                if (openItem !== parent) {
+                    openItem.classList.remove('show');
+                }
+            });
+
+            // Toggle del submenu
+            parent.classList.toggle('show');
+        });
+    });
+});
 

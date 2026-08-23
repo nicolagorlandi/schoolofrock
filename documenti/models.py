@@ -22,8 +22,36 @@ from documenti import datiRiepilogo
 
 class MODPAGAM(models.Model):
     MPCODICE = models.CharField(max_length=42,primary_key=True)
-    # Se 1 pagamento ritenute
-    MPRITACC = models.IntegerField(null=True, blank=True, default=0)
+    #il primo valore è quello registrato a database, il secondo quello mostrato a video  
+    MPTIPPAG= models.CharField(null=True, blank=True, max_length=4,        
+        choices=[
+            ("",""),
+            ("MP01","MP01"),
+            ("MP02","MP02"),
+            ("MP03","MP03"),
+            ("MP04","MP04"),
+            ("MP05","MP05"),
+            ("MP06","MP06"),
+            ("MP07","MP07"),
+            ("MP08","MP08"),
+            ("MP09","MP09"),
+            ("MP10","MP10"),
+            ("MP11","MP11"),
+            ("MP12","MP12"),
+            ("MP13","MP13"),
+            ("MP14","MP14"),
+            ("MP15","MP15"),
+            ("MP16","MP16"),
+            ("MP17","MP17"),
+            ("MP18","MP18"),
+            ("MP19","MP19"),
+            ("MP20","MP20"),
+            ("MP21","MP21"),
+            ("MP22","MP22"),
+            ("MP23","MP23")
+        ]) # codice pagamento in fattura elettronica
+
+    MPRITACC = models.IntegerField(null=True, blank=True, default=0)     # Se 1 pagamento ritenute
 
     #Utility fields
     slug = models.SlugField()    
@@ -44,6 +72,7 @@ class MODPAGAM(models.Model):
 class PAGAMENTI(models.Model):
     PACODICE = models.CharField(max_length=5,primary_key=True)
     PADESCRI = models.CharField(null=True, blank=True, max_length=50)
+    PADESEAS = models.CharField(null=True, blank=True, max_length=50) # descrizione per export verso team system
 
     #Utility fields
     slug = models.SlugField()    
@@ -220,11 +249,43 @@ class Codiciva(models.Model):
     CIPERIVA = models.DecimalField(null=True, blank=True, decimal_places=2,max_digits=5,default=0)
 
     CIESENTE = models.CharField(null=True, blank=True, max_length=1, default='N') # flag se esente IVA
+    CICODCAS = models.SmallIntegerField(null=True,default=0) # codice iva cassa - non utilizzato
+    CICODREP = models.SmallIntegerField(null=True,default=0) # codice reparto - non utilizzato    
     CIREVCHA = models.SmallIntegerField(null=True,default=0) # è un flag se 1 reverse charge
+    # natura fatturazione elettronica
+    CINATURA =models.CharField(null=True, blank=True, max_length=4, default='',
+        choices=[
+                (""      ,  ""       ),
+                ("N1"    ,  "N1"     ),
+                ("N2"    ,  "N2"     ),
+                ("N2.1"  ,  "N2.1"   ),
+                ("N2.2"  ,  "N2.2"   ),
+                ("N3"    ,  "N3"     ),
+                ("N3.1"  ,  "N3.1"   ),
+                ("N3.2"  ,  "N3.2"   ),
+                ("N3.3"  ,  "N3.3"   ),
+                ("N3.4"  ,  "N3.4"   ),
+                ("N3.5"  ,  "N3.5"   ),
+                ("N3.6"  ,  "N3.6"   ),
+                ("N4"    ,  "N4"     ),
+                ("N5"    ,  "N5"     ),
+                ("N6"    ,  "N6"     ),
+                ("N6.1"  ,  "N6.1"   ),
+                ("N6.2"  ,  "N6.2"   ),
+                ("N6.3"  ,  "N6.3"   ),
+                ("N6.4"  ,  "N6.4"   ),
+                ("N6.5"  ,  "N6.5"   ),
+                ("N6.6"  ,  "N6.6"   ),
+                ("N6.7"  ,  "N6.7"   ),
+                ("N6.8"  ,  "N6.8"   ),
+                ("N6.9"  ,  "N6.9"   ),
+                ("N7"    ,  "N7"     )
+        ])
 
-    CINATURA =models.CharField(null=True, blank=True, max_length=2, default='' ) # natura fatturazione elettronica
-
+                                
+    CIPERIND = models.DecimalField(null=True, blank=True, decimal_places=2,max_digits=5,default=0)   #% detraibilita non utilizzato
     CISPLPAY = models.SmallIntegerField(null=True,default=0) # è un flag se 1 split payment
+    CIFCLCOD = models.SmallIntegerField(null=True) #Codice Esterno (Fatture in Cloud)
 
     #Utility fields
     slug = models.SlugField()    
@@ -301,6 +362,7 @@ class Unita(models.Model):
     UNCODICE = models.CharField(max_length=5,primary_key=True)
     UNDESCRI = models.CharField(null=True, blank=True, max_length=20)
     UN_NOQTA = models.SmallIntegerField(null=True,default=0) # è un flag se 1 unità non a quantita (es forfettario!)
+    UNCODFEL = models.CharField(max_length=5, null=True, blank=True)
 
     #Utility fields
     slug = models.SlugField()    
@@ -311,7 +373,8 @@ class Unita(models.Model):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # per gestire in fase di caricamento da Emporio Open se record inserito o modificao
-        self.nuovo = False     
+        self.nuovo = False  
+ 
     
 # Marchi articoli
 class Marchiar(models.Model):
@@ -465,6 +528,7 @@ class Doctipba(models.Model):
     DTCODICE = models.CharField(max_length=2,primary_key=True)
     DTDESCRI = models.CharField(null=True, blank=True, max_length=50)
     DT_CICLO = models.CharField(null=True, blank=True, max_length=1, choices=CICLO, default='V')
+    DTTITOLO = models.CharField(null=True, blank=True, max_length=50) # non utilizzato
     DTORDINE = models.IntegerField(null=True, blank=True)
     DTREGIVA = models.IntegerField(null=True, blank=True, default=0)
     DTPORTAB = models.IntegerField(null=True, blank=True, default=0)
@@ -481,7 +545,10 @@ class Causdocu(models.Model):
     CD_CICLO = models.CharField(null=True, blank=True, max_length=1, choices=CICLO, default='V')
     CDTIPDOC = models.CharField(null=True, blank=True, max_length=2, default='OV')
     CDCAUMAG = models.ForeignKey(Causmaga, blank=True, null=True, on_delete=models.RESTRICT) # on_update non esiste in Django
-
+    CDNUMAUT= models.SmallIntegerField(null=True, blank=True, default=0) # se 1 numerazione automatica  
+    # campi non gestiti - aggiunti per agevolare l'import da Emporio Open
+    CDQUALIT = models.SmallIntegerField(); # int UN 
+    # fine blocco campi non gestiti
     CDTIPINT = models.CharField(null=True, blank=True, max_length=3,   
         #il primo valore è quello registrato a database, il secondo quello mostrato a video  
         choices=[
@@ -490,11 +557,75 @@ class Causdocu(models.Model):
             (None,"No" ),
         ])
 
+    # campi non gestiti - aggiunti per agevolare l'import da Emporio Open
+    CDACCONT   = models.SmallIntegerField(null=True)              # int UN
+    CD_STAMPA  = models.SmallIntegerField(null=True)              # int UN
+    CDINTDDT   = models.TextField(null=True)                 # mediumtext
+    CDPIEDDT   = models.TextField(null=True)                 # mediumtext
+    CDPIEDDD   = models.TextField(null=True)                 # mediumtext
+    CDPREFER   = models.SmallIntegerField(null=True)
+    CDFATDIF   = models.SmallIntegerField(null=True)
+    CDSCADEN   = models.SmallIntegerField(null=True)              # int UN
+    CDREPFIL   = models.CharField(null=True,max_length=254)
+    CDTIPFEL   = models.CharField(null=True,max_length=4)
+    CDLIMMAX   = models.DecimalField(null=True,max_digits=20, decimal_places=5)
+    CDTITOLO   = models.CharField(null=True,max_length=50)
+    CDACCCTX   = models.SmallIntegerField(null=True)              # int UN
+    CDARTACC   = models.CharField(null=True,max_length=23)
+    CDCAUACC   = models.CharField(null=True,max_length=5)
+    CDCODCFN   = models.CharField(null=True,max_length=15)
+    CDRITACC   = models.IntegerField(null=True)              # int UN
+    CD_SEGNO   = models.SmallIntegerField(null=True)              # int#    
+    # fine blocco campi non gestiti
+    
     CDINTOBB = models.SmallIntegerField(null=True, blank=True, default=1) # se 1 intestatario obbligatorio
-    CDGESPAG = models.SmallIntegerField(null=True, blank=True, default=1) # se 1 gestione pagamenti
-    CDNUMAUT= models.SmallIntegerField(null=True, blank=True, default=0) # se 1 numerazione automatica  
-
+    # campi non gestiti - aggiunti per agevolare l'import da Emporio Open
+    CDCOINTE = models.SmallIntegerField(null=True, blank=True, default=1)
+    # fine blocco campi non gestiti
     CDGESIVA = models.SmallIntegerField(null=True, blank=True, default=1) # se 1 gestione IVA 
+    CDGESPAG = models.SmallIntegerField(null=True, blank=True, default=1) # se 1 gestione pagamenti
+    # campi ad oggi non gestiti - inseriti solo per agevolare la migrazione tra Emporio open e web tramite lo script di init.
+    CDCATCON   = models.CharField(null=True,max_length=5)
+    CDGIOSCA   = models.IntegerField(null=True)
+    CD_SERIE   = models.CharField(null=True,max_length=6)
+    CD_SERPR   = models.CharField(null=True,max_length=6)
+    CDFLGCOR   = models.CharField(null=True,max_length=1)
+    CDGESCOM   = models.IntegerField(null=True)
+    CGGENCOM   = models.IntegerField(null=True)
+    CDNUMCON   = models.IntegerField(null=True)
+    CDMOVCOM   = models.IntegerField(null=True)
+    CD_CRC   = models.BigIntegerField(null=True)
+    CD_DOC   = models.CharField(null=True,max_length=254)
+    CDBISCRC   = models.BigIntegerField(null=True)
+    CDBISDOC   = models.CharField(null=True,max_length=254)
+    CDCAUCON   = models.CharField(null=True,max_length=5)
+    CDPAGDEF   = models.CharField(null=True,max_length=5)
+    CDBANDEF   = models.CharField(null=True,max_length=15)
+    CASQLMAS   = models.TextField(null=True)        # mediumtext → TextField
+    CASQLIVA   = models.TextField(null=True)
+    CASQLSCA   = models.TextField(null=True)
+    CDCODCFD   = models.CharField(null=True,max_length=15)
+    CDBTNRIG   = models.SmallIntegerField(null=True)
+    CDCRIGRD   = models.SmallIntegerField(null=True)
+    CDCATALL   = models.CharField(null=True,max_length=15)
+    CDOPTION   = models.SmallIntegerField(null=True)
+    CDDESSUP   = models.SmallIntegerField(null=True)
+    CDNUMCOP   = models.IntegerField(null=True)
+    CDGRIVAR   = models.IntegerField(null=True)
+    CDCODCAU   = models.CharField(null=True,max_length=5)
+    CDCODPOR   = models.CharField(null=True,max_length=5)
+    CDCODSPE   = models.CharField(null=True,max_length=5)
+    CDCODASP   = models.CharField(null=True,max_length=5)
+    CDCODVET   = models.CharField(null=True,max_length=5)
+    CDGENPRO   = models.IntegerField(null=True)
+    CD_SEDE   = models.CharField(null=True,max_length=5)
+    CDLORIVA   = models.SmallIntegerField(null=True)
+    CDGENLOT   = models.IntegerField(null=True)
+    CDMULTIC   = models.IntegerField(null=True)
+    CDBOLCOR   = models.IntegerField(null=True)
+    CDGIOBLO   = models.IntegerField(null=True)
+    CDAVVPAG   = models.IntegerField(null=True, blank=True)  # int? → opzionale    
+    # fine blocco campi non gestiti
 
     #Utility fields
     slug = models.SlugField()
@@ -512,7 +643,13 @@ class causdett(models.Model):
     CTCODICE = models.ForeignKey(Causdocu,on_delete=models.RESTRICT,related_name='padre') # on_update non esiste in Django
     CTCADCOL = models.ForeignKey(Causdocu,on_delete=models.RESTRICT,related_name='figlio') # on_update non esiste in Django
     CT_EVADE = models.SmallIntegerField(null=True, blank=True); # in realta 1(evade) o 0 (non evade)
-
+    # campi ad oggi non gestiti - inseriti solo per agevolare la migrazione tra Emporio open e web tramite lo script di init.
+    CTPAGAME = models.SmallIntegerField(null=True, blank=True); # in realta 1(importa dati pagamento) o 0 (non importa)
+    CTDATACC = models.SmallIntegerField(null=True, blank=True); # in realta 1(importa dati accompagnatori) o 0 (non importa)
+    CTRIGRIF = models.CharField(null=True, blank=True, max_length=20); # valori possibili per la riga riferimento, 'No','Crea','Crea con Rif.Est.','Aggiungi a note'
+    CTNOTRIF = models.SmallIntegerField(null=True, blank=True); # in realta 1(import note e riferimento esterno) o 0 (non importa)
+    CTARTTIP = models.CharField(null=True, blank=True, max_length=20); # tipi di articoli importati, 'Tutti','Solo a Magazzino','Solo Servizi'
+    # fine blocco campi non gestiti
 
 sync_status = [
     (0, "Si"),
@@ -894,4 +1031,42 @@ class Settings(models.Model):
         super(Settings, self).save(*args, **kwargs)
         # forzo di ricaricare la cache al salvataggio delle impostazioni
         cache.delete("app_settings")
+
+# menù a database
+class MenuItem(models.Model):
+    label = models.CharField(max_length=100)
+    url_name = models.CharField(max_length=100, blank=True, null=True)
+    tipoDocumento = models.CharField(max_length=1, blank=True, null=True,   
+        #il primo valore è quello registrato a database, il secondo quello mostrato a video  
+        choices=[
+            ("A","Ciclo Acquisti" ),
+            ("V","Ciclo Vendite" ),
+            ("I","Documenti Interni" ),
+        ])
+    icon = models.CharField(max_length=100, blank=True)  # es: "fa-solid fa-box"
+    parent = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        related_name="children",
+        on_delete=models.CASCADE
+    )
+    ordine = models.IntegerField(default=0)
+    visible = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["ordine"]
+
+    def __str__(self):
+        return self.label
+
+# elenco comuni per faciltare il caricamento delle anagrafiche con gli indirizzi...
+class Comuni(models.Model):
+    COCODICE = models.CharField(max_length=6, primary_key=True)
+    CODESCRI = models.CharField(max_length=80, null=True, blank=True)
+    CO_PR = models.CharField(max_length=2, null=True, blank=True)
+    COPROGRE = models.CharField(max_length=3, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.COCODICE} - {self.CODESCRI}"
 

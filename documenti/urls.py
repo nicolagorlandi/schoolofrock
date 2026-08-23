@@ -36,7 +36,8 @@ path('addArticolo/', login_required(views.Articoli_add.as_view()), name='add_Art
 path('<str:pk>/editArticolo/', login_required(views.Articoli_edit.as_view()), name='edit_Articolo'),    
 path('<str:articolo_id>/deleteArticolo/',login_required(views.Articolo_delete), name='delete_Articolo'),   
 
-path('clients/<slug:tipo>/',login_required(views.clients), name='clients'),
+path('clienti',login_required(views.clienti), name='clienti'),
+path('fornitori',login_required(views.fornitori), name='fornitori'),
 path('addCliente/<slug:tipo>/', login_required(views.Clienti_add.as_view()), name='add_Cliente'),  
 path('editCliente/<slug:tipo>/<str:pk>/', login_required(views.Clienti_edit.as_view()), name='edit_Cliente'),    
 path('deleteCliente/<slug:tipo>/<str:pk>/',login_required(views.Clienti_delete), name='delete_Cliente'),   

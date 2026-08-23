@@ -39,101 +39,54 @@
   
 
   <body class="p-3 m-0 border-0 bd-example m-0 border-0">
-    
-    <nav class="navbar navbar-light bg-light fixed-top">
+  
+      <nav class="navbar navbar-expand-lg me-auto mb-2 mb-lg-0 gap-3">
+          <div class="container-fluid">
+            <div class="collapse navbar-collapse me-auto mb-2 mb-lg-0 gap-3" id="mainMenu">
+                          <a class="" href="#" id="menuRoot">
+                {% trans "Emporio Open on web" %}
+            </a>
+                    <!-- ROOT DROPDOWN -->
+                    {% for root in MENU_TREE %}
+                      <div class="dropdown">
 
-      <div class="d-inline-flex flex-row mb-2">
-        <a class="navbar-brand" href="#">{% trans "Gestione Ordini" %}</a>
-      </div>
-      
-      <div class="d-flex flex-row-reverse">
-  
-        <div class="p-2">        
-          <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasDarkNavbar" 
-            aria-controls="offcanvasDarkNavbar" 
-            aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-          </button>
-          <div class="offcanvas offcanvas-end text-bg-light" tabindex="-1" id="offcanvasDarkNavbar" aria-labelledby="offcanvasDarkNavbarLabel">
-            <div class="offcanvas-header">
-              <h5 class="offcanvas-title" id="offcanvasDarkNavbarLabel">{% trans "Gestione Ordini" %}</h5>
-              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+                          {% if root.child_list %}
+                              <a class="nav-link dropdown-toggle" href="#" id="menu{{ root.id }}"
+                                role="button" data-bs-toggle="dropdown">
+                                  {% if root.icon %}<i class="{{ root.icon }}"></i>{% endif %}
+                                    {{ root.label }}
+                              </a>
+ 
+                              <div class="dropdown-menu" aria-labelledby="menu{{ root.id }}">
+                                  {% include "partials/menu_recursive.html" with items=root.child_list %}
+                              </div>
+                          {% else %}
+                              <a class="nav-link" href="{{ root.url }}">
+                                  {% if root.icon %}<i class="{{ root.icon }}"></i>{% endif %}
+                                    {{ root.label }}
+                              </a>
+                          {% endif %}
+
+                      </div>
+
+                    {% endfor %}
+
             </div>
-            <div class="offcanvas-body">
-              <ul class="navbar-nav justify-content-end flex-grow-1 pe-3">
-                <li class="nav-item">
-                  <a class="nav-link" href="{% url 'cartItemsSelection' %}">
-                    <span data-feather="shopping-cart"></span>
-                    {% trans "Seleziona Articoli" %}
-                  </a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link" href="{% url 'view_cart' %}">
-                    <span data-feather="shopping-cart"></span>
-                    {% trans "Carrello" %}
-                  </a>
-                </li>
-  
-              {# per ogni stato aggiungo un pulsante nella toolbar #}  
-              {% for causale in causali %}
-              <li class="nav-item">
-                <a class="nav-link" href="{% url 'documenti' causale.CDCODICE %}">
-                  <span data-feather="file"></span>
-                  {{ causale.CDDESCRI }}
+
+            <div class="d-flex flex-row-reverse">
+        
+              <div class="p-2">
+                <a class="btn btn-info fa-solid fa-cart-shopping" href="{% url 'view_cart' %}">
+                  <span id="cart_quantity" class="badge badge-danger">{{ itemInCart.count }}</span>
                 </a>
-              </li>
-              {% endfor %}          
-              <li class="nav-item">
-                <a class="nav-link" href="{% url 'products' %}">
-                  <span data-feather="shopping-cart"></span>
-                  {% trans "Articoli" %}
-                </a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link" href="{% url 'clients' tipo=CCATCLI %}">
-                  <span data-feather="users"></span>
-                  {% trans "Clienti" %}
-                </a>
-              </li> 
-              <li class="nav-item">
-                <a class="nav-link" href="{% url 'clients' tipo=CCATFOR %}">
-                  <span data-feather="users"></span>
-                  {% trans "Fornitori" %}
-                </a>
-              </li> 
-              <li class="nav-item">
-                <a class="nav-link" href="{% url 'dashboard' %}">
-                  <span data-feather="home"></span>
-                  {% trans "Dashboard" %}
-                </a>
-              </li>     
-              <li class="nav-item">
-                <a class="nav-link" href="{% url 'uploadDeskTooCSV' %}">
-                  <span data-feather="home"></span>
-                  {% trans "Import ordini" %}
-                </a>
-              </li>           
-              <li class="nav-item">
-                <a class="nav-link" href="{% url 'logout' %}">
-                  <span data-feather="users"></span>
-                  {% trans "Log Out" %}
-                </a>
-              </li>               
-            </ul>
+              </div>
+
             </div>
+
           </div>
-        </div>
+      </nav>     
 
-        <div class="p-2">
-          <a class="btn btn-info fa-solid fa-cart-shopping" href="{% url 'view_cart' %}">
-            <span id="cart_quantity" class="badge badge-danger">{{ itemInCart.count }}</span>
-          </a>
-        </div>
 
-      </div>
-
-      
-    </nav>
 
     <div class="content container-fluid" style="margin-top:50px">    
         <main>  

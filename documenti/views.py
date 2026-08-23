@@ -95,8 +95,18 @@ def login(request):
 
     return render(request, 'documenti/login.html', context)
 
+
+
 @login_required
-def clients(request,tipo):
+def clienti(request):
+    return nominativi(request,settings.CCATCLI)
+
+@login_required
+def fornitori(request):
+    return nominativi(request,settings.CCATFOR)
+
+# metodo interno per aprire l'anagarfica dei noniminativi in base al tipo..cliente,fornitore, ect
+def nominativi(request,tipo):
     context = {}
     clienti = Nominativi.getNominativi(tipo=tipo)
     context['Nominativi'] = clienti

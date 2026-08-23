@@ -1,0 +1,34 @@
+{% for item in items %}
+ {% if item.child_list %}
+        <!-- Dropdown con figli -->
+        <div class="dropdown-submenu">
+            <a class="dropdown-item dropdown-toggle" href="#" id="menu{{ item.id }}">                               
+                {% if item.icon %}<i class="{{ item.icon }}"></i>{% endif %}
+                {{ item.label }}
+            </a>
+
+            <div class="dropdown-menu submenu">
+                {% include "partials/menu_recursive.html" with items=item.child_list %}
+            </div>
+        </div>
+    {% else %}
+        <!-- Voce singola -->
+        <div class="dropdown-item-wrapper">
+            {% if item.url_name %}
+                <a class="dropdown-item" href="{% url item.url_name %}">
+                    {% if item.icon %}<i class="{{ item.icon }}"></i>{% endif %}
+                    {{ item.label }}
+                </a>
+            {% else %}
+                <span class="dropdown-item">
+                    {% if item.icon %}<i class="{{ item.icon }}"></i>{% endif %}
+                    {{ item.label }}
+                </span>
+            {% endif %}
+        </div>
+
+    {% endif %}
+
+{% endfor %}
+
+
