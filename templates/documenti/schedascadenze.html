@@ -1,0 +1,46 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% load bootstrap %}
+{% load i18n %}
+
+{% block css %}
+{% endblock %}
+
+{% block main %}
+
+<h2>Scheda Scadenze</h2>
+
+<h2>Ricerca prodotti</h2>
+
+<div class="card p-3 mb-4">
+    <form method="get">
+        {{ filter.form.as_p }}
+        <button class="btn btn-primary">Cerca</button>
+    </form>
+</div>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Numero</th>
+            <th>Cliente</th>
+            <th>Data</th>
+            <th>Totale</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for f in filter.qs %}
+        <tr>
+            <td>{{ f.DONUMORD }}</td>
+            <td>{{ f.DONUMINT }}</td>
+            <td>{{ f.DODATORD }}</td>
+            <td>{{ f.SCIMPSCA }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+
+
+{% endblock %}
+

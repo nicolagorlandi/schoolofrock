@@ -135,16 +135,20 @@ class ArticoliForm(forms.ModelForm):
 # caricamento ordini!
 class creaOrdineForm(ModelForm):
 
-    def __init__(self, *args, **kwargs):
+
+    def __init__(self, *args, TipoDocumentoSelezionato=None, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.fields['DORITACC'].disabled = True
         self.fields['DOCODUTE'].disabled = True
-        self.fields['DOCODCAU'].disabled = True
+        if TipoDocumentoSelezionato:
+            self.fields["DOCODCAU"].queryset = Causdocu.objects.filter(
+                CDTIPDOC=TipoDocumentoSelezionato
+            )
 
     class Meta:
         model = Ord_Mast        
-        fields = ['DONUMORD','DOALFORD','DODATORD','DOCODINT','DOCODCAU','DOCODUTE','DONOTE','SYNC_UPDATE','DOCODPAG','DORITPIM','DORITPER','DORITACC']
+        fields = ['DONUMORD','DOALFORD','DODATORD','DOCODINT','DOCODCAU','DOCODUTE','DONOTE','SYNC_UPDATE','DOCODPAG','DORITPIM','DORITPER','DORITACC','DOTIPDOC']
         labels = {
             'DONUMORD': _('Numero'),
             'DOALFORD': _('Serie'),
@@ -178,7 +182,22 @@ class creaOrdineForm(ModelForm):
                                 'style':"line-height: 0px;"
                             }),     
         }    
-        
+        # serve solo in caricamento per mantenere il valore impostato in get_initial nella update, non potendo essere cambiato possiamo
+        # ignorarlo
+        DOTIPDOC = forms.CharField(
+            required=False,
+            widget=forms.HiddenInput()
+        )
+
+        DOCODCAU = forms.ModelChoiceField(label=_('Causale'),queryset=Causdocu.objects.none(), 
+                                            empty_label="",
+                                            required=False,
+                                            widget=forms.Select(attrs={
+                                                'class': "form-select text-center fw-bold",
+                                                'style': 'max-width: auto;',
+                                                'onchange': 'cambioCausale(this.value, this)'
+                                            }))   
+      
 # dettaglio riga documento
 class creaDettaglioOrdineForm(ModelForm):
 

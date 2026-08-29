@@ -1,4 +1,4 @@
-    function cambioProdotto(valore,caller){
+ function cambioProdotto(valore,caller){
         $.ajax({
             url: '/doc/ajax/leggiPrezzoDescrizioneArticolo/',
             data: {
@@ -21,7 +21,14 @@
     }
     
     // al cambio di qta e prezzo aggiorno il totale ordine...TODO
-        
+    
+    // al cambio causale eseguo i calcoli..
+    function cambioCausale(valore,caller){
+        // da cahiare una API che esegua i calcolo TODO
+        console.log('Cambio causale nuovo valore: ' + valore);
+    }    
+
+
     // crea una nuova form per aggiungere un nuovo rigo.
     (function($) {
         $('#add-form').click(function() {

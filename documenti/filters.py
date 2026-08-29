@@ -131,6 +131,54 @@ class Ord_MastFilter(django_filters.FilterSet):
         model = Ord_Mast
         fields = ['DOCODINT','DODATORD','DOALFORD']
 
+class schedaScadenzaFilters(Ord_MastFilter):
+
+    # Filtri sul modello collegato ScadenzaPagamento
+    scadenza_da = django_filters.DateFilter(
+        field_name="Scadenze__SCDATSCA",
+        lookup_expr="gte",
+        label=_("Scadenza da")
+    )
+
+    scadenza_a = django_filters.DateFilter(
+        field_name="Scadenze__SCDATSCA",
+        lookup_expr="lte",
+        label="Scadenza a"
+    )
+
+    pagata = django_filters.ChoiceFilter(
+        field_name="Scadenze__SCPAGATA",
+        choices=[
+            ("0", "N"),
+            ("1", "S"),
+            ("2", "Tuttte")
+        ],
+        label="Scadenza pagata",
+        method="filter_pagata"
+    )
+
+    def filter_pagata(self, queryset, name, value):
+        if value!=None:
+            if value=='1':
+                return queryset.filter(Scadenze__SCPAGATA='S')
+            if value=='0':
+                return queryset.filter(Scadenze__SCPAGATA='N')
+            else:
+                return queryset
+
+    importo_scadenza = django_filters.RangeFilter(
+        field_name="Scadenze__SCIMPSCA",
+        label="Importo scadenza (range)"
+    )
+
+    class Meta:
+        model = Ord_Mast
+        fields = ['DOCODINT','DODATORD','DOALFORD',"scadenza_da",
+            "scadenza_a",
+            "pagata",
+            "importo_scadenza",]   
+
+
 # filtro per la dashboard con le giacenze!
 class DashboardFilter(django_filters.FilterSet):
 

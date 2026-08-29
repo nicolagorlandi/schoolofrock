@@ -9,13 +9,6 @@ def build_menu_tree(items):
     for item in items:
         item.child_list = []
 
-    # collega ogni item al suo parent
-    for item in items:
-        if item.parent_id:
-            parent = lookup.get(item.parent_id)
-            if parent:
-                parent.child_list.append(item)
-
     # dopo aver costruito la struttura di base applico doctiba
     for item in items:
             # se non ha parentId potrebbe avere valorizzato il campo ciclo
@@ -27,6 +20,13 @@ def build_menu_tree(items):
                     # creo un nuovo item e lo aggiungo 
                     newitem = MenuItem( label=documento.DTTITOLO, url_name = 'documenti',tipoDocumento =documento.DTCODICE ,parent = item  )
                     item.child_list.append(newitem)
+
+    # collega ogni item al suo parent in coda ai documenti..
+    for item in items:
+        if item.parent_id:
+            parent = lookup.get(item.parent_id)
+            if parent:
+                parent.child_list.append(item)
 
     # restituisce solo i nodi radice
     return [item for item in items if item.parent_id is None]

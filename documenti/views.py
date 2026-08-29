@@ -35,7 +35,7 @@ from PaNet1Project import settings
 
 from .models import *
 from .forms import *
-from .filters import ArticoliFilter, Ord_MastFilter,DashboardFilter
+from .filters import ArticoliFilter, Ord_MastFilter,DashboardFilter, schedaScadenzaFilters
 from .cart import Cart
 from dal import autocomplete
 import pdfkit
@@ -80,13 +80,8 @@ def login(request):
         user = auth.authenticate(username=username, password=password)
         if user is not None:
             auth.login(request, user)
-            # apro la gestione degli ordini..
-            ordVe = Causdocu.objects.filter(CD_CICLO='V').filter(CDTIPDOC='OV')
-            if ordVe.exists():
-                # per ora prendo il primo poi gestiamo con flag!
-                return redirect('documenti',TipoDocumentoSelezionato=ordVe.first().CDCODICE)
-            else:
-                return redirect('dashboard')
+            # apro la dashboard
+            return redirect('dashboard')               
         else:
             context['form'] = form
             messages.error(request, 'Invalid Credentials')
@@ -565,7 +560,7 @@ class DocumentoValidationMixin:
         return reverse(
             'documenti',
             kwargs={
-                'TipoDocumentoSelezionato': self.object.DOCODCAU.CDCODICE.CDTIPDOC                
+                'TipoDocumentoSelezionato': self.object.DOCODCAU.CDTIPDOC                
             }
         )
 
@@ -599,6 +594,11 @@ class DocumentoValidationMixin:
                 self.object.save(update_fields=['DORITACC'])
 
         return result
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['TipoDocumentoSelezionato'] = self.kwargs["TipoDocumentoSelezionato"]
+        return kwargs
 
     # aggiorna il castelletto IVA a database
     def aggiorna_castelletto_iva(self,castelletoIVA):
@@ -693,11 +693,11 @@ class CreateDocumentoView(DocumentoValidationMixin, generic.CreateView):
     def get_context_data(self, **kwargs):
         # Call the base implementation first to get a context
         context = super().get_context_data(**kwargs)
-        
+
         if 'TipoDocumentoSelezionato' in self.kwargs.keys():
-            context['TipoDocumentoSelezionato'] =   Causdocu.objects.get(CDCODICE=self.kwargs['TipoDocumentoSelezionato']);     
+            context['TipoDocumentoSelezionato'] = self.kwargs['TipoDocumentoSelezionato']    
         else:
-            context['TipoDocumentoSelezionato'] =  None;     
+            context['TipoDocumentoSelezionato'] = None;     
 
         context['DocumentoEvaso'] =  False;                         
     
@@ -724,23 +724,23 @@ class CreateDocumentoView(DocumentoValidationMixin, generic.CreateView):
         causale = None
         if 'TipoDocumentoSelezionato' in self.kwargs.keys():
             initial['DOTIPDOC'] = self.kwargs['TipoDocumentoSelezionato']
-            causale = Causdocu.objects.get(CDTIDOC=initial['DOTIPDOC'])
+            causale = Causdocu.objects.filter(CDTIPDOC=initial['DOTIPDOC']).first()
                
             # se causale prevede numerazione automatica allora calcolo il numero, altrimenti lascio a 0 per la compilazione manuale.
             if causale:
-                initial['DOCODCAU'] = causale.First  
+                initial['DOCODCAU'] = causale  
                 if causale.CDNUMAUT==1:
                     anno = str( data.year)
                     initial['DOALFORD'] = anno #per ora la serie è calcolata con l'anno della data (poi sfumeremo con le varie tiplogie)
  
                     risultatoQry =Ord_Mast.objects.filter(
                         DOALFORD =str(anno),
-                        DOCAUDOC__CDTIPDOC = causale.CDTIPDOC).aggregate(Max('DONUMORD')).get('DONUMORD__max')
+                        DOCODCAU__CDTIPDOC = causale.CDTIPDOC).aggregate(Max('DONUMORD')).get('DONUMORD__max')
                     if not risultatoQry:
                         initial['DONUMORD'] = 1
                     else:
-                        initial['DONUMORD']  = risultatoQry.get('DONUMORD__max')+1
-                                    # leggo il pagamento di default...
+                        initial['DONUMORD']  = risultatoQry+1
+                # leggo il pagamento di default...
                 initial['DOCODPAG'] = Settings.get_settings().AZPAGDEF
 
                     
@@ -753,10 +753,17 @@ class CreateDocumentoView(DocumentoValidationMixin, generic.CreateView):
         if form.is_valid() and self.formset.is_valid() and self.scadenze_formset.is_valid() and self.rivadett_formset.is_valid():
 
             # ricalcolo il numero per la concorrenza ( qui va gestita la causale )
-            if not Ord_Mast.objects.filter(DOALFORD =str( self.object.DODATORD.year)).aggregate(Max('DONUMORD')).get('DONUMORD__max'):
-                self.object.DONUMORD = 1
-            else:
-                self.object.DONUMORD = Ord_Mast.objects.filter(DOALFORD = str( self.object.DODATORD.year)).aggregate(Max('DONUMORD')).get('DONUMORD__max')+1
+            if self.object.DOCODCAU.CDNUMAUT==1:
+                risultatoQry =Ord_Mast.objects.filter(
+                    DOALFORD =str(self.object.DOALFORD),
+                    DOCODCAU__CDTIPDOC = self.object.DOCODCAU.CDTIPDOC).aggregate(Max('DONUMORD')).get('DONUMORD__max')
+                if not risultatoQry:
+                    self.object.DONUMORD = 1
+                else:
+                    self.object.DONUMORD  = risultatoQry+1
+
+            self.object.DOTIPDOC=self.object.DOCODCAU.CDTIPDOC
+
             # eseguo i controlli sui dati correnti...
             if not self.controlli_post_valid(form, self.formset):
                 return self.form_invalid(form)
@@ -780,7 +787,7 @@ class UpdateDocumentoView(DocumentoValidationMixin, generic.UpdateView):
             context['TipoDocumentoSelezionato'] =  None;
         else:
             doc = Ord_Mast.objects.get(pk=self.object.pk)
-            context['TipoDocumentoSelezionato'] =  doc.DOCODCAU; 
+            context['TipoDocumentoSelezionato'] =  doc.DOTIPDOC; 
             context['DocumentoEvaso'] =  doc.DocumentoEvaso; 
 
         return context     
@@ -802,6 +809,19 @@ class UpdateDocumentoView(DocumentoValidationMixin, generic.UpdateView):
             return self.form_valid(form)
 
         return self.form_invalid(form)
+
+# scheda scadenze
+@login_required
+def schedascadenzeattive(request):
+    return schedascadenze(request,settings.CCATCLI)
+
+@login_required
+def schedascadenzepassive(request):
+    return schedascadenze(request,settings.CCATFOR)
+
+def schedascadenze(request, ciclo):
+    filtro = schedaScadenzaFilters(request.GET, queryset=Ord_Mast.objects.all())
+    return render(request, "documenti/schedascadenze.html",  {"filter": filtro})
 
 # legge prezzo e articolo al cambio articolo nel dettaglio documenti
 def leggiPrezzoDescrizioneArticolo(request):
