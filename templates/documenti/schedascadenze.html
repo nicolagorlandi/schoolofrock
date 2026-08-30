@@ -7,36 +7,93 @@
 {% endblock %}
 
 {% block main %}
-
+{{ form.media }}
 <h2>Scheda Scadenze</h2>
-
-<h2>Ricerca prodotti</h2>
 
 <div class="card p-3 mb-4">
     <form method="get">
+        {{ filter.form.media }}
         {{ filter.form.as_p }}
         <button class="btn btn-primary">Cerca</button>
     </form>
 </div>
 
-<table class="table table-striped">
+<table class="table table-striped table-bordered">
     <thead>
         <tr>
-            <th>Numero</th>
-            <th>Cliente</th>
+            <th>Azioni</th>
+            <th>Pagata</th>
+            <th>Numero Fattura</th>
+            <th>Serie</th>
             <th>Data</th>
-            <th>Totale</th>
+            <th>Cliente</th>
+            <th>Data Scadenza</th>
+            <th>Importo</th>
+            <th>Tipo pagamento</th>
         </tr>
     </thead>
     <tbody>
-        {% for f in filter.qs %}
+
+        {% for s in scadenze %}
         <tr>
-            <td>{{ f.DONUMORD }}</td>
-            <td>{{ f.DONUMINT }}</td>
-            <td>{{ f.DODATORD }}</td>
-            <td>{{ f.SCIMPSCA }}</td>
+            <td>
+                <div class="btn-group-lg" role="group" aria-label="{% trans "Azioni" %}">                        
+                    <a class="btn btn-primary far fa-edit" href="{% url 'edit_ordine' order_id=s.SCCODICE.pk TipoDocumentoSelezionato=s.SCCODICE.DOTIPDOC %}" role="button"></a>     
+                    <a class="btn btn-info fa-solid fa-print" href="{% url 'stampaDocumento' pk=s.SCCODICE.pk %}" role="button"></a> 
+                        {% if s.SCPAGATA|default:'' != 'S' %}
+                            <!-- Pulsante che apre la modale -->
+                            <a class="btn btn-sm btn-primary fa-solid fa-cash-register" data-bs-toggle="modal" data-bs-target="#modalSalda{{ s.id }}" title="Salda"></a>
+
+                            <!-- Modale -->
+                            <div class="modal fade" id="modalSalda{{ s.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Conferma saldo scadenza</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+
+                                        <div class="modal-body">
+                                            Vuoi davvero saldare questa scadenza del {{ s.SCDATSCA }} per € {{ s.SCIMPSCA }}?
+                                        </div>
+
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+
+                                            <form method="post" action="{% url 'salda_scadenza' s.id %}">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-primary">Conferma</button>
+                                            </form>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                        {% endif %}
+                </div>
+            </td>
+            <td>
+                {% if s.SCPAGATA|default:'' == 'S' %}
+                    <span class="text-success">Sì</span>
+                {% else %}
+                    <span class="text-danger">No</span>
+                {% endif %}
+            </td>
+            <td>{{ s.SCCODICE.DONUMORD }}</td>
+            <td>{{ s.SCCODICE.DOALFORD }}</td>
+            <td>{{ s.SCCODICE.DODATORD }}</td>
+            <td>{{ s.SCCODICE.DOCODINT }}</td>
+            <td>{{ s.SCDATSCA }}</td>
+            <td>{{ s.SCIMPSCA }}</td>
+            <td>{{ s.SCTIPPAG.MPCODICE }}</td>
+           
+ 
+    
         </tr>
         {% endfor %}
+
+   
     </tbody>
 </table>
 

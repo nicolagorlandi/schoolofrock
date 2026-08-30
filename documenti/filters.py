@@ -6,6 +6,8 @@ from django_filters import ChoiceFilter
 from django.utils.translation import gettext as _
 
 from .models import *
+from dal import autocomplete
+from django import forms
 
 
 def _K6truncate(dt):
@@ -131,52 +133,98 @@ class Ord_MastFilter(django_filters.FilterSet):
         model = Ord_Mast
         fields = ['DOCODINT','DODATORD','DOALFORD']
 
-class schedaScadenzaFilters(Ord_MastFilter):
+
+class schedaScadenzaFilters(django_filters.FilterSet):
 
     # Filtri sul modello collegato ScadenzaPagamento
-    scadenza_da = django_filters.DateFilter(
-        field_name="Scadenze__SCDATSCA",
-        lookup_expr="gte",
-        label=_("Scadenza da")
+    SCCODICE__SCDATSCA = k6DateRangeFilter(label=_("Data Scadenza"))
+
+    SCCODICE__DODATORD = k6DateRangeFilter(label=_("Data Documento"))
+        
+    DONUMORDDA = django_filters.NumberFilter(label=_('Num.Documento da'),field_name='SCCODICE__DONUMORD', lookup_expr='gte')
+
+    DONUMORDA = django_filters.NumberFilter(label=_('Num.Documento a'),field_name='SCCODICE__DONUMORD', lookup_expr='lte')
+
+    SCCODICE__DOALFORD = django_filters.CharFilter(lookup_expr='iexact',label=_('Serie'))
+
+    SCTIPPAG = django_filters.ModelChoiceFilter(
+        field_name="SCTIPPAG",
+        queryset=MODPAGAM.objects.all(),
+        empty_label=_("Tutti i Pagamenti"),
+        label="Pagamenti",
     )
 
-    scadenza_a = django_filters.DateFilter(
-        field_name="Scadenze__SCDATSCA",
-        lookup_expr="lte",
-        label="Scadenza a"
+    intestatario = django_filters.ModelChoiceFilter(
+        field_name="SCCODICE__DOCODINT",
+        queryset=Nominativi.objects.none(), #nella _init_ imposto il filtro per intestatario
+        empty_label=_("Tutti"),
+        label="Intestatario",
+        widget=autocomplete.ModelSelect2(
+            url='nominativi-autocomplete/CLI', # è solo un place holder nella init e re impostato in base a quanto passato in data nella View
+           
+            attrs={
+                'data-minimum-input-length': 3,
+                'class': 'form-select'
+            })
     )
+
+    CHOICEEVASISCADENZE = {
+        ('Aperti', _('Solo aperti')),
+        ('Chiusi', _('Solo chiusi')),
+    }
+
+
+    ApertiEvasi = django_filters.ChoiceFilter(
+                             choices=CHOICEEVASISCADENZE,
+                             method='filter_ApertiEvasi',
+                             label=_('Documenti Evasi'),
+                             empty_label=_("Tutti"),
+                           )
+    # se documento senza righe si considera non evadibile.
+    def filter_ApertiEvasi(self, queryset, name, value):
+        if value == 'Aperti':
+            queryset = queryset.filter(SCCODICE__DOCODICE__in=Subquery(Ord_dett.objects.filter(DOFLEVAS=0).values('DOCODICE')))
+
+        if value == 'Chiusi':
+            queryset = queryset.filter(SCCODICE__DOCODICE__in=Subquery(Ord_dett.objects.filter(DOFLEVAS=1).values('DOCODICE')))
+
+        return queryset   
 
     pagata = django_filters.ChoiceFilter(
-        field_name="Scadenze__SCPAGATA",
+        field_name="SCPAGATA",
         choices=[
-            ("0", "N"),
-            ("1", "S"),
-            ("2", "Tuttte")
+            ("N", "Aperti"),
+            ("S", "Saldati"),
         ],
         label="Scadenza pagata",
-        method="filter_pagata"
+        empty_label=_("Tutte"),
     )
 
-    def filter_pagata(self, queryset, name, value):
-        if value!=None:
-            if value=='1':
-                return queryset.filter(Scadenze__SCPAGATA='S')
-            if value=='0':
-                return queryset.filter(Scadenze__SCPAGATA='N')
-            else:
-                return queryset
-
     importo_scadenza = django_filters.RangeFilter(
-        field_name="Scadenze__SCIMPSCA",
+        field_name="SCIMPSCA",
         label="Importo scadenza (range)"
     )
 
     class Meta:
-        model = Ord_Mast
-        fields = ['DOCODINT','DODATORD','DOALFORD',"scadenza_da",
-            "scadenza_a",
-            "pagata",
-            "importo_scadenza",]   
+        model = Scadenze
+        fields = []   
+
+    # imposto il valore iniziale per il filtro aperti evasi ad aperti    
+    def __init__(self, data=None, *args, **kwargs):
+        request = kwargs.get("request")
+        if data is not None:
+            data._mutable = True
+            if 'pagata' not in data:
+                data['pagata'] = 'N'
+            
+            data._mutable = False
+        super().__init__(data, *args, **kwargs)
+
+        if data:
+            tipo = data.get("tipoIntestatario")  # <── QUI
+            if tipo:
+                url = f"/doc/nominativi-autocomplete/{tipo}"
+                self.filters["intestatario"].field.widget.url = url
 
 
 # filtro per la dashboard con le giacenze!

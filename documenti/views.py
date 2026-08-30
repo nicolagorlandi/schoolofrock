@@ -206,20 +206,25 @@ class nominativi_autocomplete(autocomplete.Select2QuerySetView):
         if not self.request.user.is_authenticated:
             return Nominativi.getNominativi(None)
 
-        # Leggi il valore di DOCODCAU dal forward
-        docodcau = self.forwarded.get('DOCODCAU')
-        if docodcau:
-            # leggo dalla causale il tipo del nominativo..
-            causale = Causdocu.objects.get(pk=docodcau)
-            if causale and causale.CDTIPINT is not None:
-                # se causale definita e con tipo intestatario impostato allora filtro per quel tipo.
-                
-                if self.q:
-                    return Nominativi.getNominativi(causale.CDTIPINT).filter(Q(NORAGSOC__icontains=self.q)|Q(NOCODICE__icontains=self.q)).order_by('NOCODICE')[:10]
-                else:
-                    return Nominativi.getNominativi(causale.CDTIPINT).order_by('NOCODICE')[:10]
+        # parametro passato dal FilterSet (_init_)
+        tipoIntestatario = self.kwargs.get("tipoIntestatario")
 
-        return Nominativi.getNominativi(None)
+        if not tipoIntestatario:
+            # Leggi il valore di DOCODCAU dal forward
+            docodcau = self.forwarded.get('DOCODCAU')
+            if docodcau:
+                # leggo dalla causale il tipo del nominativo..
+                causale = Causdocu.objects.get(pk=docodcau)
+                if causale and causale.CDTIPINT is not None:
+                    # se causale definita e con tipo intestatario impostato allora filtro per quel tipo.
+                    tipoIntestatario = causale.CDTIPINT
+                    
+        if self.q:
+            return Nominativi.getNominativi(tipoIntestatario).filter(Q(NORAGSOC__icontains=self.q)|Q(NOCODICE__icontains=self.q)).order_by('NOCODICE')[:10]
+        else:
+            return Nominativi.getNominativi(tipoIntestatario).order_by('NOCODICE')[:10]
+
+
 
 # pagina per gestire gli articoli (quindi ricerca, editing, delete, aggiunta)
 class products(FilterView):
@@ -819,9 +824,45 @@ def schedascadenzeattive(request):
 def schedascadenzepassive(request):
     return schedascadenze(request,settings.CCATFOR)
 
-def schedascadenze(request, ciclo):
-    filtro = schedaScadenzaFilters(request.GET, queryset=Ord_Mast.objects.all())
-    return render(request, "documenti/schedascadenze.html",  {"filter": filtro})
+def schedascadenze(request, tipoIntestatario):
+    # in base al tipo itestatario decido quale documenti mostrare partendo dalle causali
+    valorefiltro=None
+    if tipoIntestatario ==settings.CCATFOR:
+        valorefiltro='A'
+
+    if tipoIntestatario ==settings.CCATCLI:
+        valorefiltro='V'
+
+    # fattura collegata e pagamenti collegati (in caso di relazione 1:n va usato prefetch_related, in coda .)  
+    qs = Scadenze.objects.select_related("SCCODICE", "SCTIPPAG").filter(SCCODICE__DOCODCAU__CD_CICLO=valorefiltro)
+
+    # Rendo GET mutabile
+    data = request.GET.copy()
+
+    # Inserisco il parametro ciclo - serve per filtrare i documenti ed arriva fino alla autocomplete per filtrare intestatario
+    data["tipoIntestatario"] = tipoIntestatario
+
+    # ai django_filters.FilterSet non è possibile passare parametri
+    filtro = schedaScadenzaFilters(queryset=qs,                     
+                                   data=data) 
+
+    return render(request, "documenti\schedascadenze.html", {
+        "filter": filtro,
+        "scadenze": filtro.qs,
+    })
+
+# salda la scadenza selezionata
+@login_required
+def salda_scadenza(request, pk):
+    scad = get_object_or_404(Scadenze, pk=pk)
+
+    # Aggiorna il campo
+    scad.SCPAGATA = 'S'
+    scad.save()
+
+    # Torna alla pagina delle scadenze
+    return redirect(request.META.get('HTTP_REFERER', '/'))
+
 
 # legge prezzo e articolo al cambio articolo nel dettaglio documenti
 def leggiPrezzoDescrizioneArticolo(request):

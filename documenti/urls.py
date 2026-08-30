@@ -38,8 +38,7 @@ path('<str:articolo_id>/deleteArticolo/',login_required(views.Articolo_delete), 
 
 path('clienti',login_required(views.clienti), name='clienti'),
 path('fornitori',login_required(views.fornitori), name='fornitori'),
-path('schedascadenzeattive',login_required(views.schedascadenzeattive), name='schedascadenzeattive'),
-path('schedascadenzepassive',login_required(views.schedascadenzepassive), name='schedascadenzepassive'),
+
 path('addCliente/<slug:tipo>/', login_required(views.Clienti_add.as_view()), name='add_Cliente'),  
 path('editCliente/<slug:tipo>/<str:pk>/', login_required(views.Clienti_edit.as_view()), name='edit_Cliente'),    
 path('deleteCliente/<slug:tipo>/<str:pk>/',login_required(views.Clienti_delete), name='delete_Cliente'),   
@@ -50,6 +49,11 @@ path('<int:order_id>/<str:TipoDocumentoSelezionato>/editordine/', login_required
 path('<int:order_id>/deleteordine/', login_required(views.deleteOrdine), name='delete_ordine'),
 path('<int:order_id>/evade_ordine/', login_required(views.evadeOrdine), name='evade_ordine'),
 path('<str:TipoDocumentoSelezionato>/<str:gruppoSelezionato>/caricaordine/', login_required(views.formset_Articoli), name='carica_Ordine'),
+
+path('schedascadenzeattive',login_required(views.schedascadenzeattive), name='schedascadenzeattive'),
+path('schedascadenzepassive',login_required(views.schedascadenzepassive), name='schedascadenzepassive'),
+path('<int:pk>/salda_scadenza',login_required(views.salda_scadenza), name='salda_scadenza'),
+
 
 path('cartItemSelection/',login_required(views.cartItemsSelection.as_view()), name='cartItemsSelection'),
 path('cart/', login_required(views.view_cart), name='view_cart'),
@@ -66,7 +70,7 @@ re_path(r'^ajax/leggiintestatario/$', views.leggiintestatario, name='leggiintest
 re_path(r'^articoli-autocomplete/$', ArticoliAutocomplete.as_view(), name='articoli-autocomplete'),
  
 # auto completamento nominativi
-re_path(r'^nominativi-autocomplete/$', nominativi_autocomplete.as_view(), name='nominativi-autocomplete'),
+re_path(r'^nominativi-autocomplete/(?P<tipoIntestatario>[\w-]+)/$', nominativi_autocomplete.as_view(), name='nominativi-autocomplete'),
 
 
 ]

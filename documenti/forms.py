@@ -182,6 +182,7 @@ class creaOrdineForm(ModelForm):
                                 'style':"line-height: 0px;"
                             }),     
         }    
+        widget=forms.Select(attrs={"class": "form-select select2-intestatario"})
         # serve solo in caricamento per mantenere il valore impostato in get_initial nella update, non potendo essere cambiato possiamo
         # ignorarlo
         DOTIPDOC = forms.CharField(
