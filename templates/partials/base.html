@@ -130,5 +130,11 @@
       {% block custom_js %}
       {% endblock %}   
 
+      <form id="table-export-csrf" class="d-none">{% csrf_token %}</form>
+      <script
+        src="{% static 'documenti/js/tableExport.js' %}"
+        data-export-url="{% url 'export-excel' %}">
+      </script>
+
   </body>
 </html>

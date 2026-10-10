@@ -221,7 +221,7 @@ class schedaScadenzaFilters(django_filters.FilterSet):
         super().__init__(data, *args, **kwargs)
 
         if data:
-            tipo = data.get("tipoIntestatario")  # <── QUI
+            tipo = data.get("tipoIntestatario")  # <── leggo il tipo di intestatario
             if tipo:
                 url = f"/doc/nominativi-autocomplete/{tipo}"
                 self.filters["intestatario"].field.widget.url = url

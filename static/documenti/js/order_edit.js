@@ -24,8 +24,24 @@
     
     // al cambio causale eseguo i calcoli..
     function cambioCausale(valore,caller){
-        // da cahiare una API che esegua i calcolo TODO
-        console.log('Cambio causale nuovo valore: ' + valore);
+        if (!valore) {
+            $('#id_DOCODPAG').val('').trigger('change');
+            return;
+        }
+
+        $.ajax({
+            url: '/doc/ajax/leggiCausale/',
+            data: {'causaleId': valore},
+            dataType: 'json',
+            success: function (data) {
+                if ($('#id_DOCODCAU').val() === valore) {
+                    $('#id_DOCODPAG').val(data.DOCODPAG || '').trigger('change');
+                }
+            },
+            error: function () {
+                window.alert('Impossibile recuperare il pagamento predefinito della causale.');
+            }
+        });
     }    
 
 

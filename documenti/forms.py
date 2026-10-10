@@ -8,6 +8,7 @@ from django.forms import BaseInlineFormSet
 from django.forms.models import modelformset_factory
 from bootstrap_datepicker_plus.widgets import DatePickerInput
 from dal import autocomplete
+from django.template.defaultfilters import slugify
 
 # classe per la selezione della data.
 class DateInput( forms.DateInput ):
@@ -108,6 +109,44 @@ class ArticoliForm(forms.ModelForm):
             'ARCODUNI':_('Unità di misura')            
         } 
 
+
+class CausdocuForm(forms.ModelForm):
+    class Meta:
+        model = Causdocu
+        fields = [
+            'CDCODICE',
+            'CDDESCRI',
+            'CD_CICLO',
+            'CDTIPDOC',
+            'CDTIPINT',
+            'CDCAUMAG',
+            'CDPAGDEF',
+            'CDNUMAUT',
+            'CDQUALIT',
+            'CDINTOBB',
+            'CDGESIVA',
+            'CDGESPAG',
+        ]
+        labels = {
+            'CDCODICE': _('Codice'),
+            'CDDESCRI': _('Descrizione'),
+            'CD_CICLO': _('Ciclo'),
+            'CDTIPDOC': _('Tipo documento'),
+            'CDTIPINT': _('Tipo intestatario'),
+            'CDCAUMAG': _('Causale di magazzino'),
+            'CDPAGDEF': _('Pagamento predefinito'),
+            'CDNUMAUT': _('Numerazione automatica'),
+            'CDQUALIT': _('Qualità'),
+            'CDINTOBB': _('Intestatario obbligatorio'),
+            'CDGESIVA': _('Gestione IVA'),
+            'CDGESPAG': _('Gestione pagamenti'),
+        }
+
+    def save(self, commit=True):
+        if not self.instance.slug:
+            self.instance.slug = slugify(self.instance.CDCODICE)
+        return super().save(commit=commit)
+
     # per motivi di velocita impostata la ricerca solo sui primi 5 record!
     ARCODGRU = forms.ModelChoiceField(label=_('Gruppo'),queryset=Grmemast.objects.all()[:5], 
                                         empty_label="",
@@ -171,7 +210,7 @@ class creaOrdineForm(ModelForm):
             'DORITPER': forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
             'DORITACC': forms.NumberInput(attrs={'readonly': 'readonly'}),
             'DOCODINT': autocomplete.ModelSelect2(
-                            url='nominativi-autocomplete',
+                            url='nominativi-autocompleteform',
                             forward=['DOCODCAU'],
                             attrs={
                                 # Set some placeholder

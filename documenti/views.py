@@ -1,9 +1,11 @@
 from csv import DictReader
 import csv
+from datetime import date
 import decimal
 from io import TextIOWrapper
 from msilib.schema import ListView
 from django.contrib.auth.decorators import user_passes_test
+from django.contrib.auth.decorators import permission_required
 from django.shortcuts import redirect, render
 from django.contrib.auth.decorators import login_required
 
@@ -13,6 +15,9 @@ from django.views.generic.edit import UpdateView,CreateView
 from django.forms import ValidationError, inlineformset_factory
 from django.forms import formset_factory,modelformset_factory
 from django.views import View, generic
+from django.urls import reverse
+from django.urls import reverse_lazy
+from django.utils.decorators import method_decorator
 
 from django.http import JsonResponse,FileResponse,HttpResponse
 import re
@@ -21,6 +26,7 @@ from django.template.loader import render_to_string
 
 from django.db import connection,transaction
 from django.db.models import Q,F,Sum,Max,Case, When,FloatField,FilteredRelation,Subquery
+from django.db.models.deletion import RestrictedError
 from django_filters.views import FilterView
 from django.core.paginator import Paginator
 
@@ -37,6 +43,11 @@ from .models import *
 from .forms import *
 from .filters import ArticoliFilter, Ord_MastFilter,DashboardFilter, schedaScadenzaFilters
 from .cart import Cart
+from .services import (
+    aggiorna_castelletto_iva,
+    finalizza_documento,
+    ricalcola_scadenze,
+)
 from dal import autocomplete
 import pdfkit
 import logging
@@ -47,6 +58,13 @@ logger = logging.getLogger(__name__)
 
 # numero di righe vuote create alla partenza!
 ROW_IN_DOC_DETAILS = 10
+
+def nominativi_list_url(tipo):
+    if tipo == settings.CCATCLI:
+        return reverse('clienti')
+    if tipo == settings.CCATFOR:
+        return reverse('fornitori')
+    raise ValueError(f'Tipo nominativo non supportato: {tipo}')
 
 #Anonymous required
 def anonymous_required(function=None, redirect_url=None):
@@ -104,7 +122,33 @@ def fornitori(request):
 def nominativi(request,tipo):
     context = {}
     clienti = Nominativi.getNominativi(tipo=tipo)
+    filtri = {
+        'codice_fiscale': request.GET.get('codice_fiscale', '').strip(),
+        'partita_iva': request.GET.get('partita_iva', '').strip(),
+        'nome': request.GET.get('nome', '').strip(),
+        'cognome': request.GET.get('cognome', '').strip(),
+        'telefono': request.GET.get('telefono', '').strip(),
+        'citta': request.GET.get('citta', '').strip(),
+    }
+    campi_filtro = {
+        'codice_fiscale': 'NOCODFIS',
+        'partita_iva': 'NOPARIVA',
+        'nome': 'NO_NOME',
+        'cognome': 'NOCOGNOM',
+        'citta': 'NO_CITTA',
+    }
+    for nome_filtro, campo in campi_filtro.items():
+        if filtri[nome_filtro]:
+            clienti = clienti.filter(**{f'{campo}__icontains': filtri[nome_filtro]})
+    if filtri['telefono']:
+        clienti = clienti.filter(
+            Q(NOTELEF1__icontains=filtri['telefono'])
+            | Q(NOTELEF2__icontains=filtri['telefono'])
+            | Q(NOTELEF3__icontains=filtri['telefono'])
+        )
+
     context['Nominativi'] = clienti
+    context['filtri'] = filtri
 
     if request.method == 'GET':
         form = ClientForm()
@@ -118,10 +162,10 @@ def nominativi(request,tipo):
             form.save()
 
             messages.success(request, 'New Item Added')
-            return redirect('clients', tipo=tipo)
+            return redirect(nominativi_list_url(tipo))
         else:
             messages.error(request, 'Problem processing your request')
-            return redirect('clients', tipo=tipo)
+            return redirect(nominativi_list_url(tipo))
 
 
     return render(request, 'documenti/clients.html', context)
@@ -132,7 +176,7 @@ class Clienti_add(CreateView):
     form_class = ClientForm
   
     def get_success_url(self):
-        return reverse('clients', kwargs={'tipo': self.kwargs.get('tipo')})
+        return nominativi_list_url(self.kwargs['tipo'])
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -161,7 +205,7 @@ class Clienti_edit(UpdateView):
     form_class = ClientForm
 
     def get_success_url(self):
-        return reverse('clients', kwargs={'tipo': self.kwargs.get('tipo')})
+        return nominativi_list_url(self.kwargs['tipo'])
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -197,7 +241,7 @@ def Clienti_delete(request,pk,tipo):
         except Exception as ex:
             messages.error(request, "Impossibile eliminare Cliente:{}".format(str(ex)))
         finally:
-            return redirect('clients',tipo=tipo)
+            return redirect(nominativi_list_url(tipo))
         
 # autocomplete per nominativi basa la ricerca per descrizione e codice
 class nominativi_autocomplete(autocomplete.Select2QuerySetView):
@@ -276,6 +320,98 @@ class Articoli_edit(UpdateView):
     
     def form_valid(self, form):   
         return super().form_valid(form)  
+
+
+@method_decorator(
+    permission_required('documenti.Manager_Ordini', raise_exception=True),
+    name='dispatch',
+)
+class CausdocuListView(generic.ListView):
+    model = Causdocu
+    template_name = 'documenti/causdocu_list.html'
+    context_object_name = 'causali_documento'
+
+    def get_queryset(self):
+        queryset = Causdocu.objects.select_related('CDCAUMAG').order_by(
+            'CD_CICLO',
+            'CDCODICE',
+        )
+        self.filtri = {
+            'ciclo': self.request.GET.get('ciclo', '').strip(),
+            'tipo_documento': self.request.GET.get('tipo_documento', '').strip(),
+            'descrizione': self.request.GET.get('descrizione', '').strip(),
+            'codice': self.request.GET.get('codice', '').strip(),
+        }
+        if self.filtri['ciclo'] in {'V', 'A'}:
+            queryset = queryset.filter(CD_CICLO=self.filtri['ciclo'])
+        if self.filtri['tipo_documento']:
+            queryset = queryset.filter(
+                CDTIPDOC__icontains=self.filtri['tipo_documento']
+            )
+        if self.filtri['descrizione']:
+            queryset = queryset.filter(
+                CDDESCRI__icontains=self.filtri['descrizione']
+            )
+        if self.filtri['codice']:
+            queryset = queryset.filter(
+                CDCODICE__icontains=self.filtri['codice']
+            )
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['filtri'] = getattr(
+            self,
+            'filtri',
+            {
+                'ciclo': '',
+                'tipo_documento': '',
+                'descrizione': '',
+                'codice': '',
+            },
+        )
+        return context
+
+
+@method_decorator(
+    permission_required('documenti.Manager_Ordini', raise_exception=True),
+    name='dispatch',
+)
+class CausdocuCreateView(generic.CreateView):
+    model = Causdocu
+    form_class = CausdocuForm
+    template_name = 'documenti/causdocu_form.html'
+    success_url = reverse_lazy('causali-documenti-list')
+
+
+@method_decorator(
+    permission_required('documenti.Manager_Ordini', raise_exception=True),
+    name='dispatch',
+)
+class CausdocuUpdateView(generic.UpdateView):
+    model = Causdocu
+    form_class = CausdocuForm
+    template_name = 'documenti/causdocu_form.html'
+    success_url = reverse_lazy('causali-documenti-list')
+
+
+@login_required
+@permission_required('documenti.Manager_Ordini', raise_exception=True)
+def causdocu_delete(request, pk):
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    causale = get_object_or_404(Causdocu, pk=pk)
+    try:
+        causale.delete()
+    except RestrictedError:
+        messages.error(
+            request,
+            'Impossibile eliminare la causale: è utilizzata da documenti o altre causali.',
+        )
+    else:
+        messages.success(request, 'Causale documento eliminata.')
+    return redirect('causali-documenti-list')
 
 @login_required
 def Articolo_delete(request,articolo_id):
@@ -587,16 +723,14 @@ class DocumentoValidationMixin:
             self.formset.save()
             self.scadenze_formset.save()
             self.rivadett_formset.save()
-            castellettoIVA,totaliDocumento = self.object.totale_fattura()
-            # aggiorno il castelletto IVA
-            self.aggiorna_castelletto_iva(castellettoIVA)
-            # genero le scadenze..
-            self.ricalcolascadenze(totaliDocumento, form,oldstato, self.object.DOIMPACC, self.object.DOIMPFIN, oldData!=self.object.DODATORD, oldPagamento)
-            # totale documento ricalcola anche l'importo delle ritenute d'acconto
-            # solo per nel caso di fornitore!
-            if self.object.DOCODCAU.CDTIPINT == settings.CCATFOR:
-                self.object.DORITACC = totaliDocumento.totRitenuta
-                self.object.save(update_fields=['DORITACC'])
+            finalizza_documento(
+                self.object,
+                form,
+                acconto=self.object.DOIMPACC,
+                finanziamento=self.object.DOIMPFIN,
+                vecchia_data=oldData,
+                vecchio_pagamento=oldPagamento,
+            )
 
         return result
 
@@ -607,85 +741,21 @@ class DocumentoValidationMixin:
 
     # aggiorna il castelletto IVA a database
     def aggiorna_castelletto_iva(self,castelletoIVA):
-        if self.object.DOCODCAU.CDGESIVA == 1:
-            # cancello il castelletto esistente
-            Rivadett.objects.filter(RICODICE=self.object).delete()
-
-            # genero il castelletto in base al dettaglio
-            for dettaglio in castelletoIVA:
-                Rivadett.objects.create(
-                    RICODICE=self.object,
-                    RICODIVA=Codiciva.objects.get(pk=dettaglio.codice_iva),
-                    RIIMPONI=dettaglio.imponibile,
-                    RIIMPOST=dettaglio.imposta,
-                )
+        aggiorna_castelletto_iva(self.object, castelletoIVA)
 
 
     #dove richiesto calcola scadenze!
     #tot:totaliDocumento;oldstato:String; acconto,finanziamento:double; bCambioData:boolean = false
     def ricalcolascadenze(self,tot,form, oldstato,acconto,finanziamento,bCambioData, oldPagamento=None):
-
-        # Eseguo il controllo che il totale scadenza coincida con il totale documento, se
-        # presente un pagamento posso calcolare in atuomatico le scadenze...
-        tmpTotDoc = tot.totDocumento
-        if self.object.DOCODCAU.CD_CICLO=='A':
-            tmpTotDoc = tmpTotDoc+tot.totRitenuta
-        
-        tmpTotDoc=tmpTotDoc-(acconto+finanziamento+tot.totBolli)
-
-        # leggo l'importo totale delle scadenze..
-
-        res = Scadenze.objects.filter(SCCODICE=self.object).aggregate(totale=Sum('SCIMPSCA'),pagata=Max('SCPAGATA'))
-        totSca = res['totale'] if res['totale'] is not None else Decimal('0')
-        pagata = res['pagata'] if res['pagata'] is not None else False
-        #conta = res['conta'] if res['conta'] is not None else 0
-
-        # totale scadenza e documento tornano e pagamento non cambiato..
-        if not(bCambioData) and (totSca==tmpTotDoc)and(oldPagamento==self.object.DOCODPAG):
-            return;
-
-        if pagata=='S':
-            # ritorno un errore.. se scadenza saldata non posso cambiare i dati...
-            form.add_error(None, f"Il totale scadenze {totSca} è differente rispetto al totale documento {tmpTotDoc} ed esiste almeno una scadenza saldata.")
-            return;
-
-        # cancello le scadenze esistenti
-        Scadenze.objects.filter(SCCODICE=self.object).delete()
-
-        # genero le scadenze in base al pagamento
-        pagamento = self.object.DOCODPAG
-        if pagamento is None or tmpTotDoc==0 :
-            return
-
-        rate = pagamento.legge_rateizzazione()
-        rate.datainizio = self.object.DODATORD
-        rate.importo = tot.totDocumento-(acconto+finanziamento+tot.totBolli);
-        # metto ritenuta di acconto se ciclo acquisti..
-        if self.object.DOCODCAU.CD_CICLO=='A':
-            rate.ritenuta_acconto=tot.totRitenuta;        
-
-        # la prima rata deve contenere l'iva..       
-        if len(rate.definizione)>0:
-            rate.definizione[0].minimo=tot.totIMposta;
-
-        rate.calcolo()
-
-        for indice, risultato in enumerate(rate.risultato, start=1):
-            tipo_pagamento = None
-            if risultato.tipo_pagamento:
-                tipo_pagamento = MODPAGAM.objects.filter(
-                    MPCODICE=risultato.tipo_pagamento
-                ).first()
-
-            Scadenze.objects.create(
-                SCCODICE=self.object,
-                SCNUMSCA=indice,
-                SCDATSCA=risultato.data_scadenza,
-                SCIMPSCA=risultato.importo,
-                SCTIPPAG=tipo_pagamento,
-                SCPAGATA=risultato.pagata,
-                SCDATPAG=risultato.data_pagamento,
-            )
+        ricalcola_scadenze(
+            self.object,
+            tot,
+            form,
+            acconto,
+            finanziamento,
+            bCambioData,
+            oldPagamento,
+        )
 
 # nuovo documento
 class CreateDocumentoView(DocumentoValidationMixin, generic.CreateView):
@@ -745,8 +815,10 @@ class CreateDocumentoView(DocumentoValidationMixin, generic.CreateView):
                         initial['DONUMORD'] = 1
                     else:
                         initial['DONUMORD']  = risultatoQry+1
-                # leggo il pagamento di default...
-                initial['DOCODPAG'] = Settings.get_settings().AZPAGDEF
+                initial['DOCODPAG'] = (
+                    causale.CDPAGDEF_id
+                    or Settings.get_settings().AZPAGDEF
+                )
 
                     
         return initial
@@ -858,6 +930,7 @@ def salda_scadenza(request, pk):
 
     # Aggiorna il campo
     scad.SCPAGATA = 'S'
+    scad.SCDATPAG = date.today()
     scad.save()
 
     # Torna alla pagina delle scadenze
@@ -888,6 +961,15 @@ def leggiPrezzoDescrizioneArticolo(request):
     return JsonResponse(data)
 
 # legge i dati collegato all'intestario
+@login_required
+def leggi_causale(request):
+    codice_causale = request.GET.get('causaleId')
+    causale = get_object_or_404(Causdocu, pk=codice_causale)
+    return JsonResponse({
+        'DOCODPAG': causale.CDPAGDEF_id,
+    })
+
+
 def leggiintestatario(request):
     nominativo = Nominativi.objects.filter(pk=request.GET.get('nominativoId')).first()
     if nominativo is None:

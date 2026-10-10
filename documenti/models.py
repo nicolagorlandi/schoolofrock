@@ -599,7 +599,7 @@ class Causdocu(models.Model):
     CDBISCRC   = models.BigIntegerField(null=True)
     CDBISDOC   = models.CharField(null=True,max_length=254)
     CDCAUCON   = models.CharField(null=True,max_length=5)
-    CDPAGDEF   = models.CharField(null=True,max_length=5)
+    CDPAGDEF   = models.ForeignKey(PAGAMENTI, blank=True, null=True, on_delete=models.RESTRICT) 
     CDBANDEF   = models.CharField(null=True,max_length=15)
     CASQLMAS   = models.TextField(null=True)        # mediumtext → TextField
     CASQLIVA   = models.TextField(null=True)

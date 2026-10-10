@@ -1,0 +1,109 @@
+{% extends 'partials/base.html' %}
+{% load bootstrap %}
+{% load i18n %}
+
+{% block js %}
+    {{ form.media }}
+    {{ formset.media }}
+{% endblock %}
+
+{% block main %}
+{% if form_invalid %}
+    {% trans "Salvataggio non riuscito. Controlla i campi evidenziati e riprova." as toast_message %}
+    {% include "partials/form_invalid_toast.html" %}
+{% endif %}
+<h1 class="h2 pt-3 pb-2 mb-3 border-bottom">
+    {% if object %}{% trans "Modifica corso" %}{% else %}{% trans "Nuovo corso" %}{% endif %}
+</h1>
+
+<form method="post" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-12 mb-3">{{ form.descrizione|bootstrap }}</div>
+        <div class="col-md-6 mb-3">{{ form.insegnante|bootstrap }}</div>
+        <div class="col-md-6 mb-3">{{ form.articolo|bootstrap }}</div>
+        <div class="col-md-3 mb-3">{{ form.prezzo|bootstrap }}</div>
+        <div class="col-md-3 mb-3">{{ form.costo|bootstrap }}</div>
+        <div class="col-md-3 mb-3">{{ form.data_inizio|bootstrap }}</div>
+        <div class="col-md-3 mb-3">{{ form.data_fine|bootstrap }}</div>
+    </div>
+
+    <h2 class="h4 mt-4">{% trans "Alunni e orari" %}</h2>
+    {% if formset.non_form_errors %}
+        <div class="alert alert-danger">{{ formset.non_form_errors }}</div>
+    {% endif %}
+    {{ formset.management_form }}
+
+    <div class="table-responsive">
+        <table class="table table-striped align-middle" data-no-excel-export>
+            <thead>
+                <tr>
+                    <th>{% trans "Alunno" %}</th>
+                    <th>{% trans "Giorno" %}</th>
+                    <th>{% trans "Ora inizio" %}</th>
+                    <th>{% trans "Durata (minuti)" %}</th>
+                    <th>{% trans "Elimina" %}</th>
+                </tr>
+            </thead>
+            <tbody id="alunni-formset">
+                {% for riga in formset %}
+                <tr>
+                    {% for hidden in riga.hidden_fields %}{{ hidden }}{% endfor %}
+                    <td>
+                        {{ riga.alunno }}
+                        {% for error in riga.alunno.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                    </td>
+                    <td>
+                        {{ riga.giorno_settimana }}
+                        {% for error in riga.giorno_settimana.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                    </td>
+                    <td>
+                        {{ riga.ora_inizio }}
+                        {% for error in riga.ora_inizio.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                    </td>
+                    <td>
+                        {{ riga.durata_minuti }}
+                        {% for error in riga.durata_minuti.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                    </td>
+                    <td>
+                        {% if riga.DELETE %}{{ riga.DELETE }}{% endif %}
+                        {% for error in riga.non_field_errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <template id="alunno-empty-form">
+        <tr>
+            {% for hidden in formset.empty_form.hidden_fields %}{{ hidden }}{% endfor %}
+            <td>{{ formset.empty_form.alunno }}</td>
+            <td>{{ formset.empty_form.giorno_settimana }}</td>
+            <td>{{ formset.empty_form.ora_inizio }}</td>
+            <td>{{ formset.empty_form.durata_minuti }}</td>
+            <td>{{ formset.empty_form.DELETE }}</td>
+        </tr>
+    </template>
+
+    <button type="button" id="add-alunno" class="btn btn-outline-primary mb-3">{% trans "Aggiungi alunno" %}</button>
+    <div class="mt-3">
+        <button type="submit" class="btn btn-primary">{% trans "Salva corso" %}</button>
+        <a class="btn btn-secondary" href="{% url 'corsi:elenco' %}">{% trans "Annulla" %}</a>
+    </div>
+</form>
+
+<script>
+    document.getElementById('add-alunno').addEventListener('click', function () {
+        const totalForms = document.getElementById('id_alunni-TOTAL_FORMS');
+        const rowTemplate = document.getElementById('alunno-empty-form').innerHTML;
+        const newRow = rowTemplate.split('__prefix__').join(totalForms.value);
+        document.getElementById('alunni-formset').insertAdjacentHTML('beforeend', newRow);
+        totalForms.value = Number(totalForms.value) + 1;
+    });
+</script>
+{% endblock %}

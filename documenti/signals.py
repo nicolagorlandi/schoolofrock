@@ -17,56 +17,119 @@ def create_default_menu(sender, **kwargs):
     if sender.name != "documenti":  
         return
 
-    # Evita duplicazioni
-    if MenuItem.objects.exists():
-        return
-
     # --- MENU PRINCIPALE ---
 
     # Ordini
-    ordini = MenuItem.objects.create(
+    ordini, created_ordini = MenuItem.objects.get_or_create(
         label="Ordini",
-        icon="fa-solid fa-file-invoice",
-        ordine=1
+        parent=None,
+        defaults={
+            "icon": "fa-solid fa-file-invoice",
+            "ordine": 1,
+            "visible": True,
+        },
     )
 
-    MenuItem.objects.create(
+    MenuItem.objects.get_or_create(
         label="Lista ordini",
-        #url_name="ordini-list",
-        icon="fa-solid fa-list",
         parent=ordini,
-        ordine=1
+        defaults={
+            "icon": "fa-solid fa-list",
+            "ordine": 1,
+        },
     )
 
-    MenuItem.objects.create(
+    MenuItem.objects.get_or_create(
         label="Nuovo ordine",
-        #url_name="ordine-crea",
-        icon="fa-solid fa-plus",
         parent=ordini,
-        ordine=2
+        defaults={
+            "icon": "fa-solid fa-plus",
+            "ordine": 2,
+        },
     )
 
     # Magazzino
-    magazzino = MenuItem.objects.create(
+    magazzino, created_magazzino = MenuItem.objects.get_or_create(
         label="Magazzino",
-        icon="fa-solid fa-boxes",
-        ordine=2
+        parent=None,
+        defaults={
+            "icon": "fa-solid fa-boxes",
+            "ordine": 2,
+            "visible": True,
+        },
     )
 
-    MenuItem.objects.create(
+    MenuItem.objects.get_or_create(
         label="Articoli",
-        #url_name="articoli-list",
-        icon="fa-solid fa-box",
         parent=magazzino,
-        ordine=1
+        defaults={
+            "icon": "fa-solid fa-box",
+            "ordine": 1,
+        },
     )
 
-    MenuItem.objects.create(
+    MenuItem.objects.get_or_create(
         label="Giacenze",
-        #url_name="giacenze",
-        icon="fa-solid fa-warehouse",
         parent=magazzino,
-        ordine=2
+        defaults={
+            "icon": "fa-solid fa-warehouse",
+            "ordine": 2,
+        },
+    )
+
+    archivi, created_archivi = MenuItem.objects.get_or_create(
+        label="Archivi",
+        parent=None,
+        defaults={
+            "icon": "fa-solid fa-folder-open",
+            "ordine": 0,
+            "visible": True,
+        },
+    )
+    for label, url_name, ordine in (
+        ("Clienti", "clienti", 1),
+        ("Fornitori", "fornitori", 2),
+        ("Articoli", "products", 3),
+    ):
+        MenuItem.objects.get_or_create(
+            label=label,
+            parent=archivi,
+            defaults={
+                "url_name": url_name,
+                "ordine": ordine,
+                "visible": True,
+            },
+        )
+
+    documenti, created_documenti = MenuItem.objects.get_or_create(
+        label="Documenti",
+        parent=archivi,
+        defaults={
+            "icon": "fa-solid fa-file-lines",
+            "ordine": 4,
+            "visible": True,
+        },
+    )
+    MenuItem.objects.get_or_create(
+        label="Causali Documenti",
+        parent=documenti,
+        defaults={
+            "url_name": "causali-documenti-list",
+            "icon": "fa-solid fa-list",
+            "ordine": 1,
+            "visible": True,
+        },
+    )
+
+    MenuItem.objects.get_or_create(
+        label="Corsi",
+        url_name="corsi:elenco",
+        parent=None,
+        defaults={
+            "icon": "fa-solid fa-graduation-cap",
+            "ordine": 3,
+            "visible": True,
+        },
     )
 
     print(_("Menù inizializzato automaticamente tramite post_migrate."))
@@ -109,4 +172,3 @@ def create_default_CAUSDOCU(sender, **kwargs):
         print(f"   → {e.__class__.__name__}: {e}")
 
     
-

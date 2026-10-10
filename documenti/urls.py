@@ -36,6 +36,11 @@ path('addArticolo/', login_required(views.Articoli_add.as_view()), name='add_Art
 path('<str:pk>/editArticolo/', login_required(views.Articoli_edit.as_view()), name='edit_Articolo'),    
 path('<str:articolo_id>/deleteArticolo/',login_required(views.Articolo_delete), name='delete_Articolo'),   
 
+path('causali-documenti/', views.CausdocuListView.as_view(), name='causali-documenti-list'),
+path('causali-documenti/nuova/', views.CausdocuCreateView.as_view(), name='causali-documenti-create'),
+path('causali-documenti/<str:pk>/modifica/', views.CausdocuUpdateView.as_view(), name='causali-documenti-update'),
+path('causali-documenti/<str:pk>/elimina/', views.causdocu_delete, name='causali-documenti-delete'),
+
 path('clienti',login_required(views.clienti), name='clienti'),
 path('fornitori',login_required(views.fornitori), name='fornitori'),
 
@@ -65,13 +70,15 @@ path("stampaDocumento/<int:pk>/", views.ordine_pdf, name="stampaDocumento"),
 
 # lettura dati articoli cambio articoli dettaglio documenti.
 re_path(r'^ajax/leggiPrezzoDescrizioneArticolo/$', views.leggiPrezzoDescrizioneArticolo, name='leggiPrezzoDescrizioneArticolo'),
+re_path(r'^ajax/leggiCausale/$', views.leggi_causale, name='leggiCausale'),
 re_path(r'^ajax/leggiintestatario/$', views.leggiintestatario, name='leggiintestatario'),
 # auto completamento articoli
 re_path(r'^articoli-autocomplete/$', ArticoliAutocomplete.as_view(), name='articoli-autocomplete'),
  
-# auto completamento nominativi
+# auto completamento nominativi (filter)
 re_path(r'^nominativi-autocomplete/(?P<tipoIntestatario>[\w-]+)/$', nominativi_autocomplete.as_view(), name='nominativi-autocomplete'),
+# auto completamento nominativi (form)
+re_path(r'^nominativi-autocompleteform', nominativi_autocomplete.as_view(), name='nominativi-autocompleteform'),
 
 
 ]
-

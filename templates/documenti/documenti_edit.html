@@ -131,7 +131,7 @@
 
 <div class="row">
     <div class="table-responsive">
-        <table class="table table-hover table-striped table-sm">
+        <table class="table table-hover table-striped table-sm" data-no-excel-export>
             <thead>
                 <tr>                
                 <th scope="col">{% trans "Articolo" %} </th>
@@ -215,7 +215,7 @@
                 {{ view.scadenze_formset.management_form }}
 
                 <div class="table-responsive">
-                    <table class="table table-sm align-middle">
+                    <table class="table table-sm align-middle" data-no-excel-export>
                         <thead>
                             <tr>
                                 <th scope="col">{% trans "N. rata" %}</th>
@@ -248,7 +248,7 @@
                 {{ view.rivadett_formset.management_form }}
 
                 <div class="table-responsive">
-                    <table class="table table-sm align-middle">
+                    <table class="table table-sm align-middle" data-no-excel-export>
                         <thead>
                             <tr>
                                 <th scope="col">{% trans "Codice IVA" %}</th>
@@ -290,4 +290,3 @@
 <script src="{% static 'documenti/js/order_edit.js' %}"></script>
 
 {% endblock %}   
-

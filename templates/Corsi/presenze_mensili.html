@@ -1,0 +1,180 @@
+{% extends 'partials/base.html' %}
+{% load bootstrap %}
+{% load i18n %}
+
+{% block main %}
+<div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{% trans "Presenze Mensili" %}</h1>
+    <div class="d-flex gap-2">
+        <a href="{% url 'corsi:calendario-lezioni' %}" class="btn btn-outline-info">{% trans "Calendario lezioni" %}</a>
+        <a href="{% url 'corsi:elenco' %}" class="btn btn-secondary">{% trans "Torna ai corsi" %}</a>
+    </div>
+</div>
+
+<form method="get" class="row align-items-end g-3 mb-4">
+    <div class="col-auto">{{ form.anno|bootstrap }}</div>
+    <div class="col-auto">{{ form.mese|bootstrap }}</div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-info">{% trans "Visualizza resoconto" %}</button>
+    </div>
+</form>
+
+{% if form.errors %}
+    <div class="alert alert-danger">{% trans "Inserisci un anno e un mese validi." %}</div>
+{% endif %}
+
+{% if anno and mese %}
+    <h2 class="h4 mt-4">{% trans "Lezioni del mese" %} — {{ mese }}/{{ anno }}</h2>
+    <div class="table-responsive mb-4">
+        <table class="table table-striped table-sm align-middle">
+            <thead>
+                <tr>
+                    <th>{% trans "Alunno" %}</th>
+                    <th>{% trans "Corso" %}</th>
+                    <th>{% trans "Docente" %}</th>
+                    <th>{% trans "Data" %}</th>
+                    <th>{% trans "Ora" %}</th>
+                    <th>{% trans "Durata (min)" %}</th>
+                    <th>{% trans "Presenza" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for riga in dettaglio_lezioni %}
+                <tr>
+                    <td>{{ riga.alunno }}</td>
+                    <td>{{ riga.corso }}</td>
+                    <td>{{ riga.docente }}</td>
+                    <td>{{ riga.lezione.data|date:"SHORT_DATE_FORMAT" }}</td>
+                    <td>{{ riga.ora_inizio|time:"H:i" }}</td>
+                    <td>{{ riga.durata_minuti }}</td>
+                    <td>
+                        {% if riga.lezione.presenza %}
+                            <span class="text-success">{% trans "Sì" %}</span>
+                        {% else %}
+                            <span class="text-danger">{% trans "No" %}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="text-center">{% trans "Nessuna lezione nel mese selezionato." %}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <h2 class="h4 mt-4">{% trans "Costo Corso per corso" %}</h2>
+    <div class="table-responsive mb-4">
+        <table class="table table-striped table-sm align-middle">
+            <thead>
+                <tr>
+                    <th>{% trans "Corso" %}</th>
+                    <th>{% trans "Docente" %}</th>
+                    <th>{% trans "Minuti lezione" %}</th>
+                    <th>{% trans "Costo orario (€)" %}</th>
+                    <th>{% trans "Costo Corso (€)" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for riga in riepilogo_corsi %}
+                <tr>
+                    <td>{{ riga.corso }}</td>
+                    <td>{{ riga.corso.insegnante }}</td>
+                    <td>{{ riga.minuti }}</td>
+                    <td>{{ riga.corso.costo|floatformat:2 }}</td>
+                    <td>{{ riga.costo|floatformat:2 }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="text-center">{% trans "Nessun dato da riepilogare." %}</td></tr>
+                {% endfor %}
+            </tbody>
+            {% if totali %}
+            <tfoot>
+                <tr class="fw-bold">
+                    <td colspan="2">{% trans "Gran totale" %}</td>
+                    <td>{{ totali.minuti_costo }}</td>
+                    <td></td>
+                    <td>{{ totali.costo|floatformat:2 }}</td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+
+    <h2 class="h4 mt-4">{% trans "Ricavo Corso per alunno" %}</h2>
+    <div class="table-responsive mb-4">
+        <table class="table table-striped table-sm align-middle">
+            <thead>
+                <tr>
+                    <th>{% trans "Alunno" %}</th>
+                    <th>{% trans "Corso" %}</th>
+                    <th>{% trans "Minuti lezione" %}</th>
+                    <th>{% trans "Minuti assenza" %}</th>
+                    <th>{% trans "Prezzo orario (€)" %}</th>
+                    <th>{% trans "Ricavo Corso (€)" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for riga in riepilogo_alunni %}
+                <tr>
+                    <td>{{ riga.alunno }}</td>
+                    <td>{{ riga.corso }}</td>
+                    <td>{{ riga.minuti }}</td>
+                    <td>{{ riga.minuti_assenza }}</td>
+                    <td>{{ riga.corso.prezzo|floatformat:2 }}</td>
+                    <td>{{ riga.ricavo|floatformat:2 }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="text-center">{% trans "Nessun dato da riepilogare." %}</td></tr>
+                {% endfor %}
+            </tbody>
+            {% if totali %}
+            <tfoot>
+                <tr class="fw-bold">
+                    <td colspan="2">{% trans "Gran totale" %}</td>
+                    <td>{{ totali.minuti_alunni }}</td>
+                    <td>{{ totali.minuti_assenza }}</td>
+                    <td></td>
+                    <td>{{ totali.ricavo|floatformat:2 }}</td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+
+    <h2 class="h4 mt-4">{% trans "Riepilogo economico per corso" %}</h2>
+    <div class="table-responsive mb-4">
+        <table class="table table-striped table-sm align-middle">
+            <thead>
+                <tr>
+                    <th>{% trans "Corso" %}</th>
+                    <th>{% trans "Costo Corso (€)" %}</th>
+                    <th>{% trans "Ricavo Corso (€)" %}</th>
+                    <th>{% trans "Differenza (ricavo - costo) (€)" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for riga in riepilogo_corsi %}
+                <tr>
+                    <td>{{ riga.corso }}</td>
+                    <td>{{ riga.costo|floatformat:2 }}</td>
+                    <td>{{ riga.ricavo|floatformat:2 }}</td>
+                    <td>{{ riga.differenza|floatformat:2 }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="text-center">{% trans "Nessun dato da riepilogare." %}</td></tr>
+                {% endfor %}
+            </tbody>
+            {% if totali %}
+            <tfoot>
+                <tr class="fw-bold">
+                    <td>{% trans "Gran totale" %}</td>
+                    <td>{{ totali.costo|floatformat:2 }}</td>
+                    <td>{{ totali.ricavo|floatformat:2 }}</td>
+                    <td>{{ totali.differenza|floatformat:2 }}</td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+{% endif %}
+{% endblock %}

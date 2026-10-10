@@ -1,0 +1,830 @@
+from datetime import date, time
+from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.test import SimpleTestCase, TestCase
+from django.urls import reverse
+
+from PaNet1Project import settings
+from documenti.models import (
+    Articoli,
+    Causdocu,
+    Codiciva,
+    Nominativi,
+    Ord_Mast,
+    Ord_dett,
+    PAG_DETT,
+    PAGAMENTI,
+    Rivadett,
+    Scadenze,
+)
+
+from .forms import AlunnoForm, CorsoForm, PeriodoLezioniForm
+from .models import Alunno, Corso, Lezioni
+from .views import date_lezioni_alunno
+
+
+class PeriodoLezioniFormTests(SimpleTestCase):
+    @patch('Corsi.forms.date')
+    def test_default_period_is_next_month(self, mock_date):
+        mock_date.today.return_value = date(2026, 10, 8)
+
+        form = PeriodoLezioniForm()
+
+        self.assertEqual(form.fields['anno'].initial, 2026)
+        self.assertEqual(form.fields['mese'].initial, 11)
+
+    @patch('Corsi.forms.date')
+    def test_default_period_rolls_over_to_next_year(self, mock_date):
+        mock_date.today.return_value = date(2026, 12, 8)
+
+        form = PeriodoLezioniForm()
+
+        self.assertEqual(form.fields['anno'].initial, 2027)
+        self.assertEqual(form.fields['mese'].initial, 1)
+
+    def test_validates_year_and_month(self):
+        form = PeriodoLezioniForm({'anno': '2026', 'mese': '11'})
+
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data, {'anno': 2026, 'mese': 11})
+
+    def test_course_form_limits_description_to_80_characters(self):
+        form = CorsoForm()
+
+        self.assertEqual(form.fields['descrizione'].max_length, 80)
+        with self.assertRaises(ValidationError):
+            form.fields['descrizione'].clean('x' * 81)
+
+    def test_alunno_start_time_uses_quarter_hour_steps(self):
+        widget = AlunnoForm().fields['ora_inizio'].widget
+
+        self.assertEqual(len(widget.choices), 97)
+        self.assertEqual(widget.choices[0], ('', 'Seleziona un orario'))
+        self.assertEqual(widget.choices[1], ('00:00', '00:00'))
+        self.assertEqual(widget.choices[-1], ('23:45', '23:45'))
+        self.assertEqual(widget.format_value(time(17, 0)), ['17:00'])
+
+    def test_alunno_start_time_renders_as_quarter_hour_select(self):
+        widget = AlunnoForm().fields['ora_inizio'].widget
+
+        rendered = str(widget.render('ora_inizio', time(17, 0)))
+
+        self.assertIn('<select', rendered)
+        self.assertIn('<option value="17:00" selected>', rendered)
+        self.assertEqual(rendered.count('<option '), 97)
+
+    def test_alunno_start_time_rejects_non_quarter_hour_values(self):
+        field = AlunnoForm().fields['ora_inizio']
+
+        self.assertEqual(field.clean('17:15'), time(17, 15))
+        with self.assertRaises(ValidationError):
+            field.clean('17:10')
+
+
+class DateLezioniAlunnoTests(SimpleTestCase):
+    def test_returns_weekdays_inside_selected_period(self):
+        alunno = SimpleNamespace(giorno_settimana='lunedi')
+
+        dates = list(
+            date_lezioni_alunno(alunno, date(2026, 11, 3), date(2026, 11, 20))
+        )
+
+        self.assertEqual(
+            dates,
+            [date(2026, 11, 9), date(2026, 11, 16)],
+        )
+
+
+class CalendarioLezioniTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='calendario-test')
+        self.client.force_login(self.user)
+        insegnante = Nominativi.objects.create(
+            NOCODICE='CAL-TEACHER',
+            NORAGSOC='Insegnante',
+            NOCOGNOM='Clapton',
+            NOCODNOM=settings.CCATFOR,
+        )
+        self.alunno_nominativo = Nominativi.objects.create(
+            NOCODICE='CAL-STUDENT',
+            NORAGSOC='Alunno di prova',
+            NOCODNOM=settings.CCATCLI,
+        )
+        codice_iva = Codiciva.objects.create(
+            CICODICE='CALIV',
+            CIDESCRI='IVA test',
+            CIPERIVA='22.00',
+            slug='caliva',
+        )
+        self.articolo = Articoli.objects.create(
+            ARCODICE='CAL-ART',
+            ARDESCRI='Lezione di chitarra',
+            ARCODIVA=codice_iva,
+        )
+        self.causale = Causdocu.objects.create(
+            CDCODICE='RF001',
+            CDDESCRI='Ricevuta fiscale',
+            CDTIPDOC='RF',
+            CDNUMAUT=1,
+            CDQUALIT=0,
+            slug='rf001',
+        )
+        self.pagamento = PAGAMENTI.objects.create(
+            PACODICE='CALPG',
+            PADESCRI='Pagamento test',
+            slug='calpag',
+        )
+        PAG_DETT.objects.create(
+            PACODICE=self.pagamento,
+            PDNUMSCA=1,
+            PDGIORNO='Data Doc.',
+            PDPERCEN='100.0000',
+        )
+        self.corso = Corso.objects.create(
+            descrizione='Chitarra',
+            insegnante=insegnante,
+            articolo=self.articolo,
+            prezzo='100.00',
+            costo='50.00',
+            data_inizio=date(2026, 10, 1),
+            data_fine=date(2026, 12, 31),
+        )
+        self.riga_alunno = Alunno.objects.create(
+            corso=self.corso,
+            alunno=self.alunno_nominativo,
+            giorno_settimana='lunedi',
+            ora_inizio='17:00',
+            durata_minuti=45,
+        )
+        self.lezione = Lezioni.objects.create(
+            alunno=self.riga_alunno,
+            data=date(2026, 10, 12),
+            data_ricorrenza=date(2026, 10, 12),
+        )
+
+    def test_course_string_uses_description_and_teacher_surname(self):
+        self.assertEqual(str(self.corso), 'Chitarra Clapton')
+
+    def test_updating_course_saves_its_description(self):
+        response = self.client.post(
+            reverse('corsi:modifica', args=[self.corso.pk]),
+            {
+                'descrizione': 'Chitarra acustica',
+                'insegnante': self.corso.insegnante_id,
+                'articolo': self.articolo.ARCODICE,
+                'prezzo': '100.00',
+                'costo': '50.00',
+                'data_inizio': '2026-10-01',
+                'data_fine': '2026-12-31',
+                'alunni-TOTAL_FORMS': '1',
+                'alunni-INITIAL_FORMS': '1',
+                'alunni-MIN_NUM_FORMS': '1',
+                'alunni-MAX_NUM_FORMS': '1000',
+                'alunni-0-id': str(self.riga_alunno.pk),
+                'alunni-0-alunno': self.alunno_nominativo.pk,
+                'alunni-0-giorno_settimana': 'lunedi',
+                'alunni-0-ora_inizio': '17:00',
+                'alunni-0-durata_minuti': '45',
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.corso.refresh_from_db()
+        self.assertEqual(self.corso.descrizione, 'Chitarra acustica')
+        self.assertEqual(self.corso.articolo, self.articolo)
+
+    def test_invalid_course_form_shows_a_toast(self):
+        response = self.client.post(
+            reverse('corsi:modifica', args=[self.corso.pk]),
+            {
+                'descrizione': 'Chitarra acustica',
+                'insegnante': self.corso.insegnante_id,
+                'articolo': self.articolo.ARCODICE,
+                'prezzo': '100.00',
+                'costo': '50.00',
+                'data_inizio': '',
+                'data_fine': '',
+                'alunni-TOTAL_FORMS': '1',
+                'alunni-INITIAL_FORMS': '1',
+                'alunni-MIN_NUM_FORMS': '1',
+                'alunni-MAX_NUM_FORMS': '1000',
+                'alunni-0-id': str(self.riga_alunno.pk),
+                'alunni-0-alunno': self.alunno_nominativo.pk,
+                'alunni-0-giorno_settimana': 'lunedi',
+                'alunni-0-ora_inizio': '17:00',
+                'alunni-0-durata_minuti': '45',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['form_invalid'])
+        self.assertContains(response, 'form-invalid-toast')
+        self.assertContains(response, 'Salvataggio non riuscito')
+
+    def test_invalid_lesson_period_shows_a_toast(self):
+        response = self.client.post(
+            reverse('corsi:lezioni'),
+            {'anno': '2026', 'mese': '13'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['form_invalid'])
+        self.assertContains(response, 'form-invalid-toast')
+        self.assertContains(response, 'Periodo non valido')
+
+    def test_course_form_displays_saved_description(self):
+        response = self.client.get(
+            reverse('corsi:modifica', args=[self.corso.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context['form']['descrizione'].value(),
+            'Chitarra',
+        )
+
+    def test_course_form_renders_saved_dates_in_html_date_format(self):
+        response = self.client.get(
+            reverse('corsi:modifica', args=[self.corso.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'value="2026-10-01"')
+        self.assertContains(response, 'value="2026-12-31"')
+
+    def test_course_list_displays_saved_description_and_teacher_surname(self):
+        response = self.client.get(reverse('corsi:elenco'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Chitarra Clapton')
+
+    def test_creating_course_saves_its_description(self):
+        response = self.client.post(
+            reverse('corsi:nuovo'),
+            {
+                'descrizione': 'Pianoforte',
+                'insegnante': self.corso.insegnante_id,
+                'prezzo': '120.00',
+                'costo': '60.00',
+                'data_inizio': '2026-10-01',
+                'data_fine': '2026-12-31',
+                'alunni-TOTAL_FORMS': '1',
+                'alunni-INITIAL_FORMS': '0',
+                'alunni-MIN_NUM_FORMS': '1',
+                'alunni-MAX_NUM_FORMS': '1000',
+                'alunni-0-alunno': self.alunno_nominativo.pk,
+                'alunni-0-giorno_settimana': 'martedi',
+                'alunni-0-ora_inizio': '18:00',
+                'alunni-0-durata_minuti': '60',
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        corso_creato = Corso.objects.get(descrizione='Pianoforte')
+        self.assertEqual(corso_creato.insegnante_id, self.corso.insegnante_id)
+
+    def test_calendar_page_renders(self):
+        response = self.client.get(reverse('corsi:calendario-lezioni'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'dayGridMonth')
+        self.assertContains(response, 'filtro-corso')
+        self.assertContains(response, 'filtro-alunno')
+
+    def test_events_expose_the_course_resource_and_support_filters(self):
+        response = self.client.get(
+            reverse('corsi:calendario-eventi'),
+            {
+                'start': '2026-10-01T00:00:00',
+                'end': '2026-11-01T00:00:00',
+                'corso': self.corso.pk,
+                'alunno': self.alunno_nominativo.pk,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        evento = response.json()[0]
+        self.assertEqual(evento['resourceId'], str(self.corso.pk))
+        self.assertEqual(evento['start'], '2026-10-12T17:00:00')
+        self.assertEqual(evento['end'], '2026-10-12T17:45:00')
+        self.assertEqual(evento['extendedProps']['corso'], str(self.corso))
+
+        response = self.client.get(
+            reverse('corsi:calendario-eventi'),
+            {
+                'start': '2026-10-01',
+                'end': '2026-11-01',
+                'corso': self.corso.pk + 1,
+            },
+        )
+        self.assertEqual(response.json(), [])
+
+    def test_event_override_changes_only_the_selected_lesson(self):
+        response = self.client.post(
+            reverse(
+                'corsi:modifica-orario-lezione',
+                args=[self.lezione.pk],
+            ),
+            {'data': '2026-10-14', 'ora_inizio': '18:30'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.lezione.refresh_from_db()
+        self.riga_alunno.refresh_from_db()
+        self.assertEqual(self.lezione.data, date(2026, 10, 14))
+        self.assertEqual(self.lezione.data_ricorrenza, date(2026, 10, 12))
+        self.assertEqual(str(self.lezione.ora_inizio), '18:30:00')
+        self.assertEqual(str(self.riga_alunno.ora_inizio), '17:00:00')
+
+        response = self.client.get(
+            reverse('corsi:calendario-eventi'),
+            {'start': '2026-10-01', 'end': '2026-11-01'},
+        )
+        evento = response.json()[0]
+        self.assertEqual(evento['start'], '2026-10-14T18:30:00')
+
+    def test_generating_lessons_again_does_not_duplicate_a_moved_lesson(self):
+        self.client.post(
+            reverse(
+                'corsi:modifica-orario-lezione',
+                args=[self.lezione.pk],
+            ),
+            {'data': '2026-10-14', 'ora_inizio': '18:30'},
+        )
+
+        response = self.client.post(
+            reverse('corsi:lezioni'),
+            {
+                'anno': '2026',
+                'mese': '10',
+                'corso_singolo': str(self.corso.pk),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        lezioni_ottobre = Lezioni.objects.filter(
+            alunno=self.riga_alunno,
+            data_ricorrenza__range=(date(2026, 10, 1), date(2026, 10, 31)),
+        )
+        self.assertEqual(lezioni_ottobre.count(), 4)
+        self.assertEqual(
+            lezioni_ottobre.filter(data_ricorrenza=date(2026, 10, 12)).count(),
+            1,
+        )
+
+    def test_invalid_event_date_or_time_is_rejected(self):
+        response = self.client.post(
+            reverse(
+                'corsi:modifica-orario-lezione',
+                args=[self.lezione.pk],
+            ),
+            {'data': 'non-una-data', 'ora_inizio': 'not-a-time'},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.lezione.refresh_from_db()
+        self.assertEqual(self.lezione.data, date(2026, 10, 12))
+        self.assertIsNone(self.lezione.ora_inizio)
+
+    def test_attendance_is_updated_from_a_single_post(self):
+        response = self.client.post(
+            reverse('corsi:aggiorna-presenza', args=[self.lezione.pk]),
+            {'presenza': 'true'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['presenza'])
+        self.lezione.refresh_from_db()
+        self.assertTrue(self.lezione.presenza)
+
+    def test_invalid_attendance_value_is_rejected(self):
+        response = self.client.post(
+            reverse('corsi:aggiorna-presenza', args=[self.lezione.pk]),
+            {'presenza': 'yes'},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.lezione.refresh_from_db()
+        self.assertFalse(self.lezione.presenza)
+
+    def test_monthly_attendance_report_includes_attended_and_absent_lessons(self):
+        Lezioni.objects.create(
+            alunno=self.riga_alunno,
+            data=date(2026, 10, 19),
+            data_ricorrenza=date(2026, 10, 19),
+            presenza=True,
+        )
+
+        response = self.client.get(
+            reverse('corsi:presenze-mensili'),
+            {'anno': '2026', 'mese': '10'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context['dettaglio_lezioni']), 2)
+        riepilogo_alunno = response.context['riepilogo_alunni'][0]
+        self.assertEqual(riepilogo_alunno['minuti'], 90)
+        self.assertEqual(riepilogo_alunno['minuti_assenza'], 45)
+        self.assertEqual(riepilogo_alunno['ricavo'], Decimal('150.00'))
+
+        riepilogo_corso = response.context['riepilogo_corsi'][0]
+        self.assertEqual(riepilogo_corso['minuti'], 90)
+        self.assertEqual(riepilogo_corso['costo'], Decimal('75.00'))
+        self.assertEqual(riepilogo_corso['ricavo'], Decimal('150.00'))
+        self.assertEqual(riepilogo_corso['differenza'], Decimal('75.00'))
+
+        totali = response.context['totali']
+        self.assertEqual(totali['minuti_alunni'], 90)
+        self.assertEqual(totali['minuti_assenza'], 45)
+        self.assertEqual(totali['costo'], Decimal('75.00'))
+        self.assertEqual(totali['ricavo'], Decimal('150.00'))
+        self.assertEqual(totali['differenza'], Decimal('75.00'))
+
+    def test_billing_counts_each_course_price_once_per_student(self):
+        Lezioni.objects.create(
+            alunno=self.riga_alunno,
+            data=date(2026, 10, 19),
+            data_ricorrenza=date(2026, 10, 19),
+            presenza=True,
+        )
+        secondo_articolo = Articoli.objects.create(
+            ARCODICE='CAL-ART2',
+            ARDESCRI='Lezione di teoria',
+            ARCODIVA=self.articolo.ARCODIVA,
+        )
+        secondo_corso = Corso.objects.create(
+            descrizione='Teoria',
+            insegnante=self.corso.insegnante,
+            articolo=secondo_articolo,
+            prezzo='60.00',
+            costo='25.00',
+            data_inizio=date(2026, 10, 1),
+            data_fine=date(2026, 12, 31),
+        )
+        seconda_riga_alunno = Alunno.objects.create(
+            corso=secondo_corso,
+            alunno=self.alunno_nominativo,
+            giorno_settimana='martedi',
+            ora_inizio='18:00',
+            durata_minuti=30,
+        )
+        Lezioni.objects.create(
+            alunno=seconda_riga_alunno,
+            data=date(2026, 10, 13),
+            data_ricorrenza=date(2026, 10, 13),
+            presenza=True,
+        )
+
+        response = self.client.get(
+            reverse('corsi:fatturazione'),
+            {
+                'anno': '2026',
+                'mese': '10',
+                'causale': self.causale.pk,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context['righe_fatturazione']), 1)
+        riepilogo = response.context['righe_fatturazione'][0]
+        self.assertEqual(len(riepilogo['corsi']), 2)
+        self.assertEqual(riepilogo['totale'], Decimal('160.00'))
+        self.assertEqual(
+            [voce['importo'] for voce in riepilogo['corsi']],
+            [Decimal('100.00'), Decimal('60.00')],
+        )
+        self.assertEqual(
+            response.context['totale_corsi_da_pagare'],
+            Decimal('160.00'),
+        )
+        self.assertTrue(riepilogo['generabile'])
+        self.assertContains(response, 'Genera ricevuta')
+
+    @patch('Corsi.views.Settings.get_settings')
+    def test_billing_creates_receipt_lines_and_links_all_month_lessons(
+        self,
+        get_settings,
+    ):
+        get_settings.return_value = SimpleNamespace(AZPAGDEF=self.pagamento)
+        Lezioni.objects.create(
+            alunno=self.riga_alunno,
+            data=date(2026, 10, 19),
+            data_ricorrenza=date(2026, 10, 19),
+            presenza=True,
+        )
+        secondo_articolo = Articoli.objects.create(
+            ARCODICE='CAL-ART2',
+            ARDESCRI='Lezione di teoria',
+            ARCODIVA=self.articolo.ARCODIVA,
+        )
+        secondo_corso = Corso.objects.create(
+            descrizione='Teoria',
+            insegnante=self.corso.insegnante,
+            articolo=secondo_articolo,
+            prezzo='60.00',
+            costo='25.00',
+            data_inizio=date(2026, 10, 1),
+            data_fine=date(2026, 12, 31),
+        )
+        seconda_riga_alunno = Alunno.objects.create(
+            corso=secondo_corso,
+            alunno=self.alunno_nominativo,
+            giorno_settimana='martedi',
+            ora_inizio='18:00',
+            durata_minuti=30,
+        )
+        Lezioni.objects.create(
+            alunno=seconda_riga_alunno,
+            data=date(2026, 10, 13),
+            data_ricorrenza=date(2026, 10, 13),
+            presenza=False,
+        )
+        dati_fatturazione = {
+            'anno': '2026',
+            'mese': '10',
+            'causale': self.causale.pk,
+        }
+
+        response = self.client.post(
+            reverse(
+                'corsi:genera-ricevuta',
+                args=[self.alunno_nominativo.pk],
+            ),
+            dati_fatturazione,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        documento = Ord_Mast.objects.get(DOCODCAU=self.causale)
+        response = self.client.get(
+            reverse('corsi:fatturazione'),
+            dati_fatturazione,
+        )
+        self.assertEqual(
+            response.context['righe_fatturazione'][0]['totale'],
+            Decimal('160.00'),
+        )
+        self.assertContains(response, 'Apri ricevuta')
+        self.assertContains(
+            response,
+            reverse(
+                'edit_ordine',
+                kwargs={
+                    'order_id': documento.pk,
+                    'TipoDocumentoSelezionato': 'RF',
+                },
+            ),
+        )
+        self.assertEqual(documento.DOCODINT, self.alunno_nominativo)
+        self.assertEqual(documento.DOCODPAG, self.pagamento)
+        righe_documento = list(
+            Ord_dett.objects.filter(DOCODICE=documento).order_by('DONUMRIG')
+        )
+        self.assertEqual(len(righe_documento), 2)
+        self.assertEqual(righe_documento[0].DOCODART, self.articolo)
+        self.assertEqual(righe_documento[0].DOQTAUM1, Decimal('1'))
+        self.assertEqual(righe_documento[0].DOPREZZO, Decimal('100.00'))
+        self.assertEqual(righe_documento[1].DOCODART, secondo_articolo)
+        self.assertEqual(righe_documento[1].DOPREZZO, Decimal('60.00'))
+        castelletto_iva = Rivadett.objects.get(RICODICE=documento)
+        self.assertEqual(castelletto_iva.RICODIVA, self.articolo.ARCODIVA)
+        self.assertEqual(castelletto_iva.RIIMPONI, Decimal('160.00'))
+        self.assertEqual(castelletto_iva.RIIMPOST, Decimal('35.20'))
+        scadenza = Scadenze.objects.get(SCCODICE=documento)
+        self.assertEqual(scadenza.SCIMPSCA, Decimal('195.00'))
+        self.assertEqual(
+            Lezioni.objects.filter(
+                alunno__alunno=self.alunno_nominativo,
+                data__month=10,
+                data__year=2026,
+                documento_fatturazione=documento,
+            ).count(),
+            3,
+        )
+
+        response = self.client.post(
+            reverse(
+                'corsi:genera-ricevuta',
+                args=[self.alunno_nominativo.pk],
+            ),
+            dati_fatturazione,
+            follow=True,
+        )
+
+        self.assertEqual(Ord_Mast.objects.filter(DOCODCAU=self.causale).count(), 1)
+        self.assertContains(response, 'già collegate a una ricevuta')
+
+    @patch('Corsi.views.Settings.get_settings')
+    def test_bulk_billing_generates_receipts_for_unbilled_students_only(
+        self,
+        get_settings,
+    ):
+        get_settings.return_value = SimpleNamespace(AZPAGDEF=self.pagamento)
+        secondo_alunno = Nominativi.objects.create(
+            NOCODICE='CAL-STUDENT-2',
+            NORAGSOC='Secondo alunno',
+            NOCODNOM=settings.CCATCLI,
+        )
+        seconda_riga_alunno = Alunno.objects.create(
+            corso=self.corso,
+            alunno=secondo_alunno,
+            giorno_settimana='martedi',
+            ora_inizio='18:00',
+            durata_minuti=45,
+        )
+        seconda_lezione = Lezioni.objects.create(
+            alunno=seconda_riga_alunno,
+            data=date(2026, 10, 13),
+            data_ricorrenza=date(2026, 10, 13),
+            presenza=False,
+        )
+        dati_fatturazione = {
+            'anno': '2026',
+            'mese': '10',
+            'causale': self.causale.pk,
+        }
+
+        response = self.client.get(
+            reverse('corsi:fatturazione'),
+            dati_fatturazione,
+        )
+        self.assertContains(response, 'Genera tutte le ricevute non ancora create')
+        self.assertEqual(response.context['numero_ricevute_generabili'], 2)
+
+        response = self.client.post(
+            reverse('corsi:genera-tutte-ricevute'),
+            dati_fatturazione,
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            Ord_Mast.objects.filter(DOCODCAU=self.causale).count(),
+            2,
+        )
+        self.lezione.refresh_from_db()
+        seconda_lezione.refresh_from_db()
+        self.assertIsNotNone(self.lezione.documento_fatturazione_id)
+        self.assertIsNotNone(seconda_lezione.documento_fatturazione_id)
+        self.assertNotEqual(
+            self.lezione.documento_fatturazione_id,
+            seconda_lezione.documento_fatturazione_id,
+        )
+        self.assertContains(response, 'Generate 2 ricevute fiscali')
+
+        self.client.post(
+            reverse('corsi:genera-tutte-ricevute'),
+            dati_fatturazione,
+        )
+        self.assertEqual(
+            Ord_Mast.objects.filter(DOCODCAU=self.causale).count(),
+            2,
+        )
+
+    def test_billing_refuses_courses_without_an_article(self):
+        self.corso.articolo = None
+        self.corso.save(update_fields=['articolo'])
+        response = self.client.get(
+            reverse('corsi:fatturazione'),
+            {
+                'anno': '2026',
+                'mese': '10',
+                'causale': self.causale.pk,
+            },
+        )
+
+        self.assertFalse(response.context['righe_fatturazione'][0]['generabile'])
+        self.assertContains(response, 'Articolo mancante')
+
+    def test_billing_shows_paid_only_when_all_receipt_due_dates_are_paid(self):
+        documento = Ord_Mast.objects.create(
+            DODATORD=date(2026, 10, 10),
+            DOCODCAU=self.causale,
+            DOCODINT=self.alunno_nominativo,
+            DOCODUTE=self.user,
+            DOTIPDOC='RF',
+            slug='ricevuta-test-saldo',
+        )
+        self.lezione.documento_fatturazione = documento
+        self.lezione.save(update_fields=['documento_fatturazione'])
+        Ord_dett.objects.create(
+            DOCODICE=documento,
+            DONUMRIG=1,
+            DOCODART=self.articolo,
+            DOQTAUM1='1',
+            DOPREZZO='100.00',
+        )
+        prima_scadenza = Scadenze.objects.create(
+            SCCODICE=documento,
+            SCNUMSCA=1,
+            SCIMPSCA='50.00',
+            SCPAGATA='N',
+        )
+        seconda_scadenza = Scadenze.objects.create(
+            SCCODICE=documento,
+            SCNUMSCA=2,
+            SCIMPSCA='50.00',
+            SCPAGATA='N',
+        )
+        parametri = {
+            'anno': '2026',
+            'mese': '10',
+            'causale': self.causale.pk,
+        }
+        url_fatturazione = reverse('corsi:fatturazione')
+        response = self.client.get(url_fatturazione, parametri)
+
+        self.assertFalse(response.context['righe_fatturazione'][0]['pagato'])
+        self.assertEqual(
+            response.context['righe_fatturazione'][0]['totale_documento'],
+            Decimal('100.00'),
+        )
+        self.assertEqual(
+            response.context['totale_documenti_pagati'],
+            Decimal('0.00'),
+        )
+        self.assertEqual(
+            response.context['totale_documenti_non_pagati'],
+            Decimal('100.00'),
+        )
+        self.assertEqual(
+            len(response.context['righe_fatturazione'][0]['scadenze_non_pagate']),
+            2,
+        )
+        self.assertContains(response, 'Salda #1')
+        self.assertContains(response, 'Salda #2')
+
+        referer = f'{url_fatturazione}?anno=2026&mese=10&causale={self.causale.pk}'
+        response = self.client.post(
+            reverse('salda_scadenza', args=[prima_scadenza.pk]),
+            HTTP_REFERER=referer,
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context['righe_fatturazione'][0]['pagato'])
+        seconda_scadenza.refresh_from_db()
+        self.assertEqual(seconda_scadenza.SCPAGATA, 'N')
+
+        response = self.client.post(
+            reverse('salda_scadenza', args=[seconda_scadenza.pk]),
+            HTTP_REFERER=referer,
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['righe_fatturazione'][0]['pagato'])
+        self.assertEqual(
+            response.context['totale_documenti_pagati'],
+            Decimal('100.00'),
+        )
+        self.assertEqual(
+            response.context['totale_documenti_non_pagati'],
+            Decimal('0.00'),
+        )
+        self.assertContains(response, 'Pagato')
+
+    def test_deleting_receipt_clears_its_lesson_reference(self):
+        documento = Ord_Mast.objects.create(
+            DODATORD=date(2026, 10, 10),
+            DOCODCAU=self.causale,
+            DOCODINT=self.alunno_nominativo,
+            DOCODUTE=self.user,
+            DOTIPDOC='RF',
+            slug='ricevuta-test-cancellazione',
+        )
+        self.lezione.documento_fatturazione = documento
+        self.lezione.save(update_fields=['documento_fatturazione'])
+
+        documento.delete()
+
+        self.lezione.refresh_from_db()
+        self.assertIsNone(self.lezione.documento_fatturazione_id)
+        self.assertTrue(Lezioni.objects.filter(pk=self.lezione.pk).exists())
+
+    def test_monthly_attendance_report_renders_without_lessons(self):
+        response = self.client.get(
+            reverse('corsi:presenze-mensili'),
+            {'anno': '2027', 'mese': '1'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['dettaglio_lezioni'], [])
+        self.assertEqual(response.context['riepilogo_corsi'], [])
+        self.assertEqual(response.context['riepilogo_alunni'], [])
+        self.assertIsNotNone(response.context['totali'])
+        self.assertEqual(response.context['totali']['minuti_assenza'], 0)
+
+    @patch('Corsi.forms.date')
+    def test_monthly_attendance_report_defaults_to_next_month(self, mock_date):
+        mock_date.today.return_value = date(2026, 10, 8)
+
+        response = self.client.get(reverse('corsi:presenze-mensili'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['anno'], 2026)
+        self.assertEqual(response.context['mese'], 11)
+        self.assertIsNotNone(response.context['totali'])

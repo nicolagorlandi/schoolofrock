@@ -1,0 +1,12 @@
+{% extends 'partials/base.html' %}
+{% load i18n %}
+
+{% block main %}
+<h1 class="h2 pt-3 pb-2 mb-3 border-bottom">{% trans "Elimina corso" %}</h1>
+<p>{% trans "Confermi l'eliminazione del corso e di tutti i relativi alunni e lezioni?" %}</p>
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">{% trans "Conferma eliminazione" %}</button>
+    <a class="btn btn-secondary" href="{% url 'corsi:elenco' %}">{% trans "Annulla" %}</a>
+</form>
+{% endblock %}

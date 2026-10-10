@@ -1,0 +1,259 @@
+{% extends 'partials/base.html' %}
+{% load i18n %}
+
+{% block js %}
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.19/index.global.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.19/locales-all.global.min.js"></script>
+{% endblock %}
+
+{% block main %}
+<div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{% trans "Calendario lezioni" %}</h1>
+    <a href="{% url 'corsi:elenco' %}" class="btn btn-secondary">{% trans "Torna ai corsi" %}</a>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-6">
+        <label for="filtro-corso" class="form-label">{% trans "Corso" %}</label>
+        <select id="filtro-corso" class="form-select">
+            <option value="">{% trans "Tutti i corsi" %}</option>
+            {% for corso in corsi %}
+                <option value="{{ corso.pk }}">{{ corso }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-6">
+        <label for="filtro-alunno" class="form-label">{% trans "Alunno" %}</label>
+        <select id="filtro-alunno" class="form-select">
+            <option value="">{% trans "Tutti gli alunni" %}</option>
+            {% for alunno in alunni %}
+                <option value="{{ alunno.pk }}">{{ alunno }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<div id="errore-calendario" class="alert alert-danger d-none" role="alert"></div>
+<form id="csrf-form" class="d-none">{% csrf_token %}</form>
+<div id="calendario-lezioni"></div>
+
+<div class="modal fade" id="modificaLezioneModal" tabindex="-1" aria-labelledby="modificaLezioneModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <form id="modifica-lezione-form" class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="modificaLezioneModalLabel">{% trans "Modifica data e ora della lezione" %}</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% trans 'Chiudi' %}"></button>
+            </div>
+            <div class="modal-body">
+                <p id="modifica-lezione-alunno" class="mb-3"></p>
+                <div class="mb-3">
+                    <label for="modifica-lezione-data" class="form-label">{% trans "Data" %}</label>
+                    <input id="modifica-lezione-data" class="form-control" type="date" required>
+                </div>
+                <div>
+                    <label for="modifica-lezione-ora" class="form-label">{% trans "Ora inizio" %}</label>
+                    <input id="modifica-lezione-ora" class="form-control" type="time" min="00:00" step="900" required>
+                </div>
+                <div id="errore-modifica-lezione" class="alert alert-danger d-none mt-3 mb-0" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annulla" %}</button>
+                <button id="salva-modifica-lezione" type="submit" class="btn btn-primary">{% trans "Salva" %}</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const calendarElement = document.getElementById('calendario-lezioni');
+        const errorElement = document.getElementById('errore-calendario');
+        const editForm = document.getElementById('modifica-lezione-form');
+        const editErrorElement = document.getElementById('errore-modifica-lezione');
+        const editModal = bootstrap.Modal.getOrCreateInstance(
+            document.getElementById('modificaLezioneModal')
+        );
+        const csrfToken = document.querySelector('#csrf-form [name=csrfmiddlewaretoken]').value;
+        let lezioneSelezionata = null;
+
+        function localDate(value) {
+            return value.getFullYear() + '-' +
+                String(value.getMonth() + 1).padStart(2, '0') + '-' +
+                String(value.getDate()).padStart(2, '0');
+        }
+
+        function localTime(value) {
+            return String(value.getHours()).padStart(2, '0') + ':' +
+                String(value.getMinutes()).padStart(2, '0');
+        }
+
+        async function salvaDataOra(evento, data, oraInizio) {
+            const response = await fetch(
+                '{% url "corsi:modifica-orario-lezione" 0 %}'.replace('/0/', '/' + evento.id + '/'),
+                {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: new URLSearchParams({data: data, ora_inizio: oraInizio})
+                }
+            );
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.error || 'Modifica della lezione non riuscita.');
+            }
+        }
+
+        const calendario = new FullCalendar.Calendar(calendarElement, {
+            initialView: 'dayGridMonth',
+            locale: 'it',
+            height: 'auto',
+            firstDay: 1,
+            editable: true,
+            eventDurationEditable: false,
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: ''
+            },
+            buttonText: {
+                today: 'Oggi'
+            },
+            events: {
+                url: '{{ eventi_url|escapejs }}',
+                extraParams: function () {
+                    return {
+                        corso: document.getElementById('filtro-corso').value,
+                        alunno: document.getElementById('filtro-alunno').value
+                    };
+                },
+                failure: function () {
+                    errorElement.textContent = 'Impossibile caricare le lezioni. Riprova.';
+                    errorElement.classList.remove('d-none');
+                }
+            },
+            eventSourceSuccess: function () {
+                errorElement.classList.add('d-none');
+            },
+            eventDrop: async function (info) {
+                errorElement.classList.add('d-none');
+                try {
+                    await salvaDataOra(
+                        info.event,
+                        localDate(info.event.start),
+                        localTime(info.event.start)
+                    );
+                    calendario.refetchEvents();
+                } catch (error) {
+                    info.revert();
+                    errorElement.textContent = error.message;
+                    errorElement.classList.remove('d-none');
+                }
+            },
+            eventClick: function (info) {
+                lezioneSelezionata = info.event;
+                document.getElementById('modifica-lezione-alunno').textContent =
+                    info.event.title + ' — ' + info.event.extendedProps.corso;
+                document.getElementById('modifica-lezione-data').value =
+                    localDate(info.event.start);
+                document.getElementById('modifica-lezione-ora').value =
+                    localTime(info.event.start);
+                editErrorElement.classList.add('d-none');
+                editModal.show();
+            },
+            eventContent: function (arg) {
+                const wrapper = document.createElement('div');
+                const attendance = document.createElement('input');
+                attendance.type = 'checkbox';
+                attendance.className = 'form-check-input me-1';
+                attendance.checked = arg.event.extendedProps.presenza;
+                attendance.setAttribute(
+                    'aria-label',
+                    'Presenza di ' + arg.event.title
+                );
+                attendance.title = 'Presenza di ' + arg.event.title;
+
+                attendance.addEventListener('click', function (event) {
+                    event.stopPropagation();
+                });
+                attendance.addEventListener('change', async function (event) {
+                    event.stopPropagation();
+                    const checkbox = event.currentTarget;
+                    checkbox.disabled = true;
+                    errorElement.classList.add('d-none');
+                    try {
+                        const response = await fetch(
+                            '{% url "corsi:aggiorna-presenza" 0 %}'.replace('/0/', '/' + arg.event.id + '/'),
+                            {
+                                method: 'POST',
+                                credentials: 'same-origin',
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded',
+                                    'X-CSRFToken': csrfToken
+                                },
+                                body: new URLSearchParams({presenza: String(checkbox.checked)})
+                            }
+                        );
+                        const result = await response.json();
+                        if (!response.ok) {
+                            throw new Error(result.error || 'Aggiornamento della presenza non riuscito.');
+                        }
+                        calendario.refetchEvents();
+                    } catch (error) {
+                        checkbox.checked = !checkbox.checked;
+                        errorElement.textContent = error.message;
+                        errorElement.classList.remove('d-none');
+                    } finally {
+                        checkbox.disabled = false;
+                    }
+                });
+
+                wrapper.appendChild(attendance);
+                if (arg.timeText) {
+                    wrapper.appendChild(document.createTextNode(arg.timeText + ' '));
+                }
+                wrapper.appendChild(document.createTextNode(arg.event.title));
+                const course = document.createElement('small');
+                course.className = 'd-block';
+                course.textContent = arg.event.extendedProps.corso;
+                wrapper.appendChild(course);
+                return {domNodes: [wrapper]};
+            }
+        });
+
+        document.getElementById('filtro-corso').addEventListener('change', function () {
+            calendario.refetchEvents();
+        });
+        document.getElementById('filtro-alunno').addEventListener('change', function () {
+            calendario.refetchEvents();
+        });
+        editForm.addEventListener('submit', async function (event) {
+            event.preventDefault();
+            if (!lezioneSelezionata) {
+                return;
+            }
+
+            const submitButton = document.getElementById('salva-modifica-lezione');
+            submitButton.disabled = true;
+            editErrorElement.classList.add('d-none');
+            try {
+                await salvaDataOra(
+                    lezioneSelezionata,
+                    document.getElementById('modifica-lezione-data').value,
+                    document.getElementById('modifica-lezione-ora').value
+                );
+                editModal.hide();
+                calendario.refetchEvents();
+            } catch (error) {
+                editErrorElement.textContent = error.message;
+                editErrorElement.classList.remove('d-none');
+            } finally {
+                submitButton.disabled = false;
+            }
+        });
+        calendario.render();
+    });
+</script>
+{% endblock %}

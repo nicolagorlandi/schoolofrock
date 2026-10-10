@@ -1,0 +1,122 @@
+{% extends 'partials/base.html' %}
+{% load bootstrap %}
+{% load i18n %}
+
+{% block main %}
+{% if form_invalid %}
+    {% trans "Periodo non valido. Inserisci un anno e un mese validi." as toast_message %}
+    {% include "partials/form_invalid_toast.html" %}
+{% endif %}
+<div class="pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{% trans "Generazione lezioni" %}</h1>
+    <a href="{% url 'corsi:elenco' %}" class="btn btn-secondary">{% trans "Torna ai corsi" %}</a>
+</div>
+
+<form method="get" class="row align-items-end g-3 mb-4">
+    <div class="col-auto">
+        {{ form.anno|bootstrap }}
+    </div>
+    <div class="col-auto">
+        {{ form.mese|bootstrap }}
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-info">{% trans "Visualizza corsi" %}</button>
+    </div>
+</form>
+
+{% if form.errors %}
+    <div class="alert alert-danger">{% trans "Controlla i campi evidenziati." %}</div>
+{% endif %}
+
+{% if anno and mese %}
+    <h2 class="h4 mb-3">{% trans "Corsi nel periodo selezionato" %}</h2>
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="anno" value="{{ anno }}">
+        <input type="hidden" name="mese" value="{{ mese }}">
+
+        <div class="table-responsive">
+            <table class="table table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th scope="col">
+                            <input id="seleziona-tutti-corsi" class="form-check-input" type="checkbox"
+                                   aria-label="{% trans 'Seleziona o deseleziona tutti i corsi' %}">
+                        </th>
+                        <th scope="col">{% trans "Insegnante" %}</th>
+                        <th scope="col">{% trans "Periodo corso" %}</th>
+                        <th scope="col">{% trans "Alunni e orari" %}</th>
+                        <th scope="col">{% trans "Generazione" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for corso in corsi %}
+                    <tr>
+                        <td>
+                            <input class="form-check-input" type="checkbox"
+                                   name="corsi_selezionati" value="{{ corso.pk }}"
+                                   aria-label="{% trans 'Seleziona il corso' %} {{ corso }}">
+                        </td>
+                        <td>{{ corso.insegnante }}</td>
+                        <td>{{ corso.data_inizio|date:"SHORT_DATE_FORMAT" }} – {{ corso.data_fine|date:"SHORT_DATE_FORMAT" }}</td>
+                        <td>
+                            {% for riga in corso.alunni.all %}
+                                <div>{{ riga.alunno }} — {{ riga.get_giorno_settimana_display }} {{ riga.ora_inizio|time:"H:i" }} ({{ riga.durata_minuti }} {% trans "min" %})</div>
+                            {% empty %}
+                                <span class="text-muted">{% trans "Nessun alunno associato" %}</span>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            <button type="submit" class="btn btn-sm btn-outline-primary"
+                                    name="corso_singolo" value="{{ corso.pk }}">
+                                {% trans "Genera lezioni" %}
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center">{% trans "Nessun corso interseca il mese selezionato." %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if corsi %}
+            <button type="submit" class="btn btn-primary">{% trans "Genera per i corsi selezionati" %}</button>
+        {% endif %}
+    </form>
+{% endif %}
+{% endblock %}
+
+{% block custom_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const selectAll = document.getElementById('seleziona-tutti-corsi');
+        if (!selectAll) {
+            return;
+        }
+
+        const courseCheckboxes = Array.from(
+            document.querySelectorAll('input[name="corsi_selezionati"]')
+        );
+
+        selectAll.addEventListener('change', function () {
+            courseCheckboxes.forEach(function (checkbox) {
+                checkbox.checked = selectAll.checked;
+            });
+        });
+
+        courseCheckboxes.forEach(function (checkbox) {
+            checkbox.addEventListener('change', function () {
+                const checkedCount = courseCheckboxes.filter(
+                    function (item) { return item.checked; }
+                ).length;
+                selectAll.checked = checkedCount === courseCheckboxes.length;
+                selectAll.indeterminate = checkedCount > 0
+                    && checkedCount < courseCheckboxes.length;
+            });
+        });
+    });
+</script>
+{% endblock %}

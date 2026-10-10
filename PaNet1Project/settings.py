@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'mathfilters',
     'wkhtmltopdf',
     'documenti',      
+    'Corsi',
 ]
 
 MIDDLEWARE = [

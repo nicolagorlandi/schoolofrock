@@ -1,0 +1,17 @@
+{% load i18n %}
+<div class="toast-container position-fixed top-0 end-0 p-3">
+    <div id="form-invalid-toast" class="toast text-bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">{{ toast_message }}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="{% trans 'Chiudi' %}"></button>
+        </div>
+    </div>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        bootstrap.Toast.getOrCreateInstance(
+            document.getElementById('form-invalid-toast'),
+            {delay: 8000}
+        ).show();
+    });
+</script>
