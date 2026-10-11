@@ -1,3 +1,4 @@
+from calendar import monthrange
 from datetime import date, time
 
 from django import forms
@@ -9,7 +10,7 @@ from dal import autocomplete
 from PaNet1Project import settings
 from documenti.models import Articoli, Causdocu, Nominativi
 
-from .models import Alunno, Corso
+from .models import Alunno, Corso, Lezioni
 
 
 class QuarterHourTimeSelect(forms.Select):
@@ -81,12 +82,45 @@ class FatturazioneForm(PeriodoLezioniForm):
         empty_label=_('Seleziona una causale'),
         widget=forms.Select(attrs={'class': 'form-select'}),
     )
+    alunno = forms.ModelChoiceField(
+        label=_('Alunno'),
+        queryset=Nominativi.objects.none(),
+        required=False,
+        empty_label=_('Tutti gli alunni'),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    corso = forms.ModelChoiceField(
+        label=_('Corso'),
+        queryset=Corso.objects.none(),
+        required=False,
+        empty_label=_('Tutti i corsi'),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['causale'].queryset = Causdocu.objects.filter(
             CDTIPDOC='RF'
         ).order_by('CDDESCRI', 'CDCODICE')
+        anno = self['anno'].value()
+        mese = self['mese'].value()
+        try:
+            anno = int(anno)
+            mese = int(mese)
+            inizio_periodo = date(anno, mese, 1)
+            fine_periodo = date(anno, mese, monthrange(anno, mese)[1])
+        except (TypeError, ValueError):
+            return
+
+        self.fields['alunno'].queryset = Nominativi.objects.filter(
+            corsi_frequentati__lezioni__data__range=(
+                inizio_periodo,
+                fine_periodo,
+            )
+        ).distinct().order_by('NORAGSOC')
+        self.fields['corso'].queryset = Corso.objects.filter(
+            alunni__lezioni__data__range=(inizio_periodo, fine_periodo)
+        ).distinct().order_by('descrizione', 'pk')
 
 
 class CorsoForm(forms.ModelForm):

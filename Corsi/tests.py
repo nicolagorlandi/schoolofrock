@@ -478,6 +478,23 @@ class CalendarioLezioniTests(TestCase):
             data_ricorrenza=date(2026, 10, 13),
             presenza=True,
         )
+        altro_alunno = Nominativi.objects.create(
+            NOCODICE='CAL-STUDENT-2',
+            NORAGSOC='Altro alunno',
+            NOCODNOM=settings.CCATCLI,
+        )
+        altra_riga_alunno = Alunno.objects.create(
+            corso=self.corso,
+            alunno=altro_alunno,
+            giorno_settimana='mercoledi',
+            ora_inizio='19:00',
+            durata_minuti=30,
+        )
+        Lezioni.objects.create(
+            alunno=altra_riga_alunno,
+            data=date(2026, 10, 14),
+            data_ricorrenza=date(2026, 10, 14),
+        )
 
         response = self.client.get(
             reverse('corsi:fatturazione'),
@@ -485,6 +502,7 @@ class CalendarioLezioniTests(TestCase):
                 'anno': '2026',
                 'mese': '10',
                 'causale': self.causale.pk,
+                'corso': secondo_corso.pk,
             },
         )
 
@@ -503,6 +521,40 @@ class CalendarioLezioniTests(TestCase):
         )
         self.assertTrue(riepilogo['generabile'])
         self.assertContains(response, 'Genera ricevuta')
+
+    def test_billing_student_filter_only_shows_selected_student(self):
+        altro_alunno = Nominativi.objects.create(
+            NOCODICE='CAL-STUDENT-2',
+            NORAGSOC='Altro alunno',
+            NOCODNOM=settings.CCATCLI,
+        )
+        altra_riga_alunno = Alunno.objects.create(
+            corso=self.corso,
+            alunno=altro_alunno,
+            giorno_settimana='martedi',
+            ora_inizio='18:00',
+            durata_minuti=30,
+        )
+        Lezioni.objects.create(
+            alunno=altra_riga_alunno,
+            data=date(2026, 10, 13),
+            data_ricorrenza=date(2026, 10, 13),
+        )
+
+        response = self.client.get(
+            reverse('corsi:fatturazione'),
+            {
+                'anno': '2026',
+                'mese': '10',
+                'causale': self.causale.pk,
+                'alunno': self.alunno_nominativo.pk,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        righe = response.context['righe_fatturazione']
+        self.assertEqual(len(righe), 1)
+        self.assertEqual(righe[0]['alunno'], self.alunno_nominativo)
 
     @patch('Corsi.views.Settings.get_settings')
     def test_billing_creates_receipt_lines_and_links_all_month_lessons(

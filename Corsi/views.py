@@ -528,6 +528,25 @@ def presenze_mensili(request):
     )
 
 
+def _lezioni_fatturazione_periodo(
+    inizio_periodo,
+    fine_periodo,
+    alunno=None,
+    corso=None,
+):
+    lezioni = Lezioni.objects.filter(
+        data__range=(inizio_periodo, fine_periodo)
+    )
+    if corso:
+        alunni_con_corso = lezioni.filter(
+            alunno__corso=corso
+        ).values_list('alunno__alunno_id', flat=True).distinct()
+        lezioni = lezioni.filter(alunno__alunno_id__in=alunni_con_corso)
+    if alunno:
+        lezioni = lezioni.filter(alunno__alunno=alunno)
+    return lezioni
+
+
 @login_required
 @require_http_methods(['GET'])
 def fatturazione_mensile(request):
@@ -541,8 +560,11 @@ def fatturazione_mensile(request):
         mese = form.cleaned_data['mese']
         inizio_periodo = date(anno, mese, 1)
         fine_periodo = date(anno, mese, monthrange(anno, mese)[1])
-        lezioni = Lezioni.objects.filter(
-            data__range=(inizio_periodo, fine_periodo)
+        lezioni = _lezioni_fatturazione_periodo(
+            inizio_periodo,
+            fine_periodo,
+            alunno=form.cleaned_data['alunno'],
+            corso=form.cleaned_data['corso'],
         ).select_related(
             'alunno__alunno',
             'alunno__corso__articolo',
@@ -784,14 +806,17 @@ def _crea_ricevuta_alunno(
     return documento
 
 
-def _redirect_fatturazione(anno, mese, causale):
-    query = urlencode(
-        {
-            'anno': anno,
-            'mese': mese,
-            'causale': causale.pk,
-        }
-    )
+def _redirect_fatturazione(anno, mese, causale, alunno=None, corso=None):
+    parametri = {
+        'anno': anno,
+        'mese': mese,
+        'causale': causale.pk,
+    }
+    if alunno:
+        parametri['alunno'] = alunno.pk
+    if corso:
+        parametri['corso'] = corso.pk
+    query = urlencode(parametri)
     return redirect(f'{reverse("corsi:fatturazione")}?{query}')
 
 
@@ -806,6 +831,8 @@ def genera_ricevuta_alunno(request, alunno_id):
     anno = form.cleaned_data['anno']
     mese = form.cleaned_data['mese']
     causale = form.cleaned_data['causale']
+    alunno_filtro = form.cleaned_data['alunno']
+    corso_filtro = form.cleaned_data['corso']
     inizio_periodo = date(anno, mese, 1)
     fine_periodo = date(anno, mese, monthrange(anno, mese)[1])
     nominativo = get_object_or_404(Nominativi, pk=alunno_id)
@@ -826,7 +853,9 @@ def genera_ricevuta_alunno(request, alunno_id):
             f'Ricevuta fiscale {documento.pk} creata per {nominativo}.',
         )
 
-    return _redirect_fatturazione(anno, mese, causale)
+    return _redirect_fatturazione(
+        anno, mese, causale, alunno_filtro, corso_filtro
+    )
 
 
 @login_required
@@ -840,10 +869,15 @@ def genera_tutte_ricevute(request):
     anno = form.cleaned_data['anno']
     mese = form.cleaned_data['mese']
     causale = form.cleaned_data['causale']
+    alunno_filtro = form.cleaned_data['alunno']
+    corso_filtro = form.cleaned_data['corso']
     inizio_periodo = date(anno, mese, 1)
     fine_periodo = date(anno, mese, monthrange(anno, mese)[1])
-    alunni_ids = Lezioni.objects.filter(
-        data__range=(inizio_periodo, fine_periodo),
+    alunni_ids = _lezioni_fatturazione_periodo(
+        inizio_periodo,
+        fine_periodo,
+        alunno=alunno_filtro,
+        corso=corso_filtro,
     ).values_list('alunno__alunno_id', flat=True).distinct()
 
     create_count = 0
@@ -876,4 +910,6 @@ def genera_tutte_ricevute(request):
     elif not create_count:
         messages.info(request, 'Non ci sono ricevute da generare.')
 
-    return _redirect_fatturazione(anno, mese, causale)
+    return _redirect_fatturazione(
+        anno, mese, causale, alunno_filtro, corso_filtro
+    )

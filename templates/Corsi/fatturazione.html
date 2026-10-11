@@ -12,6 +12,8 @@
     <div class="col-auto">{{ form.anno|bootstrap }}</div>
     <div class="col-auto">{{ form.mese|bootstrap }}</div>
     <div class="col-md-4">{{ form.causale|bootstrap }}</div>
+    <div class="col-md-4">{{ form.alunno|bootstrap }}</div>
+    <div class="col-md-4">{{ form.corso|bootstrap }}</div>
     <div class="col-auto">
         <button type="submit" class="btn btn-info">{% trans "Visualizza fatturazione" %}</button>
     </div>
@@ -29,6 +31,12 @@
         <input type="hidden" name="anno" value="{{ anno }}">
         <input type="hidden" name="mese" value="{{ mese }}">
         <input type="hidden" name="causale" value="{{ causale.pk }}">
+        {% if form.cleaned_data.alunno %}
+            <input type="hidden" name="alunno" value="{{ form.cleaned_data.alunno.pk }}">
+        {% endif %}
+        {% if form.cleaned_data.corso %}
+            <input type="hidden" name="corso" value="{{ form.cleaned_data.corso.pk }}">
+        {% endif %}
         <button type="submit" class="btn btn-primary">
             {% trans "Genera tutte le ricevute non ancora create" %}
             ({{ numero_ricevute_generabili }})
@@ -108,6 +116,12 @@
                             <input type="hidden" name="anno" value="{{ anno }}">
                             <input type="hidden" name="mese" value="{{ mese }}">
                             <input type="hidden" name="causale" value="{{ causale.pk }}">
+                            {% if form.cleaned_data.alunno %}
+                                <input type="hidden" name="alunno" value="{{ form.cleaned_data.alunno.pk }}">
+                            {% endif %}
+                            {% if form.cleaned_data.corso %}
+                                <input type="hidden" name="corso" value="{{ form.cleaned_data.corso.pk }}">
+                            {% endif %}
                             <button type="submit" class="btn btn-sm btn-primary">
                                 {% trans "Genera ricevuta" %}
                             </button>
