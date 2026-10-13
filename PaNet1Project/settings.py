@@ -57,7 +57,6 @@ INSTALLED_APPS = [
     'bootstrapform',
     'django_filters',
     'crispy_forms',
-    'fontawesomefree',
     #"debug_toolbar",
     'rest_framework',
     'django_bootstrap5',
