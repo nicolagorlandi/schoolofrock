@@ -14,8 +14,7 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.10
-      - key: DATABASE_URL
-        sync: false
+
 databases:
   - name: panet1-db
     plan: free
