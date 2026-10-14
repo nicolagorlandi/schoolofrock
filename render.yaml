@@ -18,6 +18,12 @@ services:
         value: true
       - key: DATABASE_URL
         value: postgresql://panet1_db_user:ghABpkxZjlHnIwwjq5NsWJdmrtwXjYNg@dpg-db5ug1navr4c73a4cie0-a.oregon-postgres.render.com/panet1_db
+      - key: DJANGO_SUPERUSER_USERNAME
+        value: admin
+      - key: DJANGO_SUPERUSER_PASSWORD
+        value: admin
+      - key: DJANGO_SUPERUSER_EMAIL
+        value: gorlandinicola@gmail.com
 
 databases:
   - name: panet1-db
