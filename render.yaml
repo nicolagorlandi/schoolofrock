@@ -11,6 +11,7 @@ services:
       python manage.py collectstatic --noinput
       python manage.py migrate
     startCommand: gunicorn PaNet1Project.wsgi:application
+    postDeployCommand: python manage.py createsuperuser --noinput
     envVars:
       - key: PYTHON_VERSION
         value: 3.10
