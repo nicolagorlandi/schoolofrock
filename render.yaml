@@ -14,6 +14,10 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.10
+      - key: RENDER
+        value: true
+      - key: DATABASE_URL
+        value: postgresql://panet1_db_user:ghABpkxZjlHnIwwjq5NsWJdmrtwXjYNg@dpg-db5ug1navr4c73a4cie0-a.oregon-postgres.render.com/panet1_db
 
 databases:
   - name: panet1-db
