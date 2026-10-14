@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/4.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
-
+import dj_database_url
 import os
 from pathlib import Path
 import environ
@@ -104,11 +104,22 @@ WSGI_APPLICATION = 'PaNet1Project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-    'default': env.db('DATABASE_URL'),
-    #'k6': env.db('DATABASE_K6')
+
+
+# Se DATABASE_URL esiste (Render/Neon), usa Postgres
+if os.environ.get("RENDER"):
+    DATABASES = {
+        "default": dj_database_url.config(
+            conn_max_age=600,
+            ssl_require=True
+        )
     }
 
+# Altrimenti (sviluppo locale), usa SQLite
+else:
+    DATABASES = {
+        'default': env.db('DATABASE_URL'),
+        }
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
