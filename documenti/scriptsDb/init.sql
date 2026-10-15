@@ -8,7 +8,7 @@ INSERT INTO "documenti_causdett" ("CTCADCOL_id","CTCODICE_id","CT_EVADE","CTPAGA
 ('FVI','OV',1,0,0,'No',0,'Tutti'),('NA','FA',1,0,0,'No',0,'Tutti'),('NA','RC',1,0,0,'No',0,'Tutti'),('NV','FV',1,0,0,'No',0,'Tutti'),
 ('OA','AM',1,0,0,'No',0,'Tutti'),('OA','OV',1,0,0,'No',0,'Tutti'),('OP','DA',1,0,0,'No',0,'Tutti'),('OP','OV',1,0,0,'No',0,'Tutti'),
 ('OV','PV',1,0,0,'No',0,'Tutti'),('RC','CA',1,0,0,'No',0,'Tutti'),('RC','DA',1,0,0,'No',0,'Tutti'),('RC','FA',1,0,0,'No',0,'Tutti'),
-('RECV','CA',1,0,0,'No',0,'Tutti'),('RF','PV',1,0,0,'No',0,'Tutti'),('RS','CA',1,0,0,'No',0,'Tutti'),('SC','CA',1,0,0,'No',0,'Tutti')
+('RECV','CA',1,0,0,'No',0,'Tutti'),('RF','PV',1,0,0,'No',0,'Tutti'),('RS','CA',1,0,0,'No',0,'Tutti'),('SC','CA',1,0,0,'No',0,'Tutti'),
 ('SC','CP',1,0,0,'No',0,'Tutti')
  ON CONFLICT ("CTCADCOL_id","CTCODICE_id") DO NOTHING;
 
