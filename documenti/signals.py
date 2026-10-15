@@ -9,6 +9,26 @@ from PaNet1Project import settings
 
 from .models import MenuItem
 from django.utils.translation import gettext as _
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+@receiver(post_migrate)
+def create_superuser(sender, **kwargs):
+    """
+    Crea automaticamente il superuser dopo le migrazioni,
+    se non esiste già.
+    """
+    username = os.environ.get("DJANGO_SUPERUSER_USERNAME")
+    password = os.environ.get("DJANGO_SUPERUSER_PASSWORD")
+    email = os.environ.get("DJANGO_SUPERUSER_EMAIL")
+
+    if username and password and email:
+        if not User.objects.filter(username=username).exists():
+            User.objects.create_superuser(username=username, email=email, password=password)
+            print(f"Superuser '{username}' creato.")
+        else:
+            print(f"Superuser '{username}' già esistente, non lo creo.")
 
 
 @receiver(post_migrate)
