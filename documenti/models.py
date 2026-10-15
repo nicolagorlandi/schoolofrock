@@ -651,6 +651,12 @@ class causdett(models.Model):
     CTARTTIP = models.CharField(null=True, blank=True, max_length=20); # tipi di articoli importati, 'Tutti','Solo a Magazzino','Solo Servizi'
     # fine blocco campi non gestiti
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['CTCODICE', 'CTCADCOL'], name='unique_CTCODICE_CTCADCOL')
+        ]
+
+
 sync_status = [
     (0, "Si"),
     (1, "No"),
