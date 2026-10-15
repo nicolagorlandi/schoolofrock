@@ -10,7 +10,6 @@ services:
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
       python manage.py migrate
-      python manage.py createsuperuser --noinput
     startCommand: gunicorn PaNet1Project.wsgi:application
     envVars:
       - key: PYTHON_VERSION
@@ -19,6 +18,8 @@ services:
         value: true
       - key: DATABASE_URL
         value: postgresql://panet1_db_user:ghABpkxZjlHnIwwjq5NsWJdmrtwXjYNg@dpg-db5ug1navr4c73a4cie0-a.oregon-postgres.render.com/panet1_db
+
+        
       - key: DJANGO_SUPERUSER_USERNAME
         value: admin
       - key: DJANGO_SUPERUSER_PASSWORD
@@ -27,6 +28,4 @@ services:
         value: gorlandinicola@gmail.com
 
 databases:
-  - name: panet1-db
-    plan: free
 
