@@ -17,7 +17,7 @@ services:
       - key: RENDER
         value: true
       - key: DATABASE_URL
-        value: postgresql://panet1_db_user:ghABpkxZjlHnIwwjq5NsWJdmrtwXjYNg@dpg-db5ug1navr4c73a4cie0-a.oregon-postgres.render.com/panet1_db
+        value: postgresql://neondb_owner:npg_YW1hCngzG5ia@ep-summer-surf-baqea4i7-pooler.c-8.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
 
         
       - key: DJANGO_SUPERUSER_USERNAME
