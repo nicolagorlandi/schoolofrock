@@ -187,7 +187,7 @@ def eventi_calendario(request):
         lezioni = lezioni.filter(alunno__alunno_id=alunno_id)
 
     eventi = []
-    for lezione in lezioni.order_by('data', 'alunno__ora_inizio'):
+    for lezione in lezioni.order_by('data', 'alunno__ora_inizio').iterator():
         ora_inizio = lezione.ora_inizio or lezione.alunno.ora_inizio
         inizio_lezione = datetime.combine(lezione.data, ora_inizio)
         fine_lezione = inizio_lezione + timedelta(
