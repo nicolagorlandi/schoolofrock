@@ -204,7 +204,7 @@ def eventi_calendario(request):
                 'borderColor': '#198754' if lezione.presenza else '#6c757d',
                 'extendedProps': {
                     'presenza': lezione.presenza,
-                    'corso': str(lezione.alunno.corso),
+                    'corso': str(lezione.alunno.corso.descrizione),
                     'alunno': str(lezione.alunno.alunno),
                     'note': lezione.note,
                 },
