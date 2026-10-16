@@ -14,13 +14,14 @@
 <form method="get" class="row align-items-end g-3 mb-4">
     <div class="col-auto">{{ form.anno|bootstrap }}</div>
     <div class="col-auto">{{ form.mese|bootstrap }}</div>
+    <div class="col-auto">{{ form.corso|bootstrap }}</div>
     <div class="col-auto">
         <button type="submit" class="btn btn-info">{% trans "Visualizza resoconto" %}</button>
     </div>
 </form>
 
 {% if form.errors %}
-    <div class="alert alert-danger">{% trans "Inserisci un anno e un mese validi." %}</div>
+    <div class="alert alert-danger">{% trans "Inserisci un anno, un mese e un corso validi." %}</div>
 {% endif %}
 
 {% if anno and mese %}
@@ -109,7 +110,6 @@
                     <th>{% trans "Corso" %}</th>
                     <th>{% trans "Minuti lezione" %}</th>
                     <th>{% trans "Minuti assenza" %}</th>
-                    <th>{% trans "Prezzo orario (€)" %}</th>
                     <th>{% trans "Ricavo Corso (€)" %}</th>
                 </tr>
             </thead>
@@ -120,7 +120,6 @@
                     <td>{{ riga.corso }}</td>
                     <td>{{ riga.minuti }}</td>
                     <td>{{ riga.minuti_assenza }}</td>
-                    <td>{{ riga.corso.prezzo|floatformat:2 }}</td>
                     <td>{{ riga.ricavo|floatformat:2 }}</td>
                 </tr>
                 {% empty %}
@@ -133,7 +132,6 @@
                     <td colspan="2">{% trans "Gran totale" %}</td>
                     <td>{{ totali.minuti_alunni }}</td>
                     <td>{{ totali.minuti_assenza }}</td>
-                    <td></td>
                     <td>{{ totali.ricavo|floatformat:2 }}</td>
                 </tr>
             </tfoot>

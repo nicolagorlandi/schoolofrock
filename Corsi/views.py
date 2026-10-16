@@ -28,6 +28,7 @@ from .forms import (
     CorsoForm,
     FatturazioneForm,
     PeriodoLezioniForm,
+    PresenzeMensiliForm,
 )
 from .models import Alunno, Corso, Lezioni
 
@@ -388,10 +389,10 @@ def gestione_lezioni(request):
 @require_http_methods(['GET'])
 def presenze_mensili(request):
     if request.GET:
-        form = PeriodoLezioniForm(request.GET)
+        form = PresenzeMensiliForm(request.GET)
     else:
-        form_iniziale = PeriodoLezioniForm()
-        form = PeriodoLezioniForm(
+        form_iniziale = PresenzeMensiliForm()
+        form = PresenzeMensiliForm(
             {
                 'anno': form_iniziale.fields['anno'].initial,
                 'mese': form_iniziale.fields['mese'].initial,
@@ -406,11 +407,15 @@ def presenze_mensili(request):
     if form.is_valid():
         anno = form.cleaned_data['anno']
         mese = form.cleaned_data['mese']
+        corso = form.cleaned_data['corso']
         inizio_periodo = date(anno, mese, 1)
         fine_periodo = date(anno, mese, monthrange(anno, mese)[1])
         lezioni = Lezioni.objects.filter(
             data__range=(inizio_periodo, fine_periodo)
-        ).select_related(
+        )
+        if corso is not None:
+            lezioni = lezioni.filter(alunno__corso=corso)
+        lezioni = lezioni.select_related(
             'alunno__corso__insegnante',
             'alunno__alunno',
         ).order_by(
@@ -424,6 +429,7 @@ def presenze_mensili(request):
 
         corsi_per_id = {}
         alunni_per_chiave = {}
+        slot_corso_contati = set()
         for lezione in lezioni:
             riga_alunno = lezione.alunno
             corso = riga_alunno.corso
@@ -450,7 +456,12 @@ def presenze_mensili(request):
                     'ricavo': Decimal('0.00'),
                 },
             )
-            riepilogo_corso['minuti'] += durata
+            # se nel corso ho due lezioni solita ora e solito giorno allora i minuti dell'insegnante
+            # li conto una volta sola - lezione di gruppo
+            slot_corso = (corso.pk, lezione.data, ora_inizio)
+            if slot_corso not in slot_corso_contati:
+                riepilogo_corso['minuti'] += durata
+                slot_corso_contati.add(slot_corso)
 
             chiave_alunno = (corso.pk, nominativo.pk)
             riepilogo_alunno = alunni_per_chiave.setdefault(
@@ -469,10 +480,8 @@ def presenze_mensili(request):
 
         for riepilogo_alunno in alunni_per_chiave.values():
             corso = riepilogo_alunno['corso']
-            riepilogo_alunno['ricavo'] = _importo_orario(
-                riepilogo_alunno['minuti'],
-                corso.prezzo,
-            )
+            # gli alunni non pagano a minuti ma a mensilita
+            riepilogo_alunno['ricavo'] = corso.prezzo
             corsi_per_id[corso.pk]['ricavo'] += riepilogo_alunno['ricavo']
 
         for riepilogo_corso in corsi_per_id.values():

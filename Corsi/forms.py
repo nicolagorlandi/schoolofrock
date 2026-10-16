@@ -75,6 +75,23 @@ class PeriodoLezioniForm(forms.Form):
         self.fields['mese'].initial = mese_successivo
 
 
+class PresenzeMensiliForm(PeriodoLezioniForm):
+    corso = forms.ModelChoiceField(
+        label=_('Corso'),
+        queryset=Corso.objects.none(),
+        required=False,
+        empty_label=_('Tutti i corsi'),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['corso'].queryset = Corso.objects.order_by(
+            'descrizione',
+            'pk',
+        )
+
+
 class FatturazioneForm(PeriodoLezioniForm):
     causale = forms.ModelChoiceField(
         label=_('Causale ricevuta fiscale'),

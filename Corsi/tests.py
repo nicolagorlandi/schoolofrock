@@ -444,6 +444,38 @@ class CalendarioLezioniTests(TestCase):
         self.assertEqual(totali['ricavo'], Decimal('150.00'))
         self.assertEqual(totali['differenza'], Decimal('75.00'))
 
+    def test_monthly_course_cost_counts_shared_time_slot_once(self):
+        altro_alunno_nominativo = Nominativi.objects.create(
+            NOCODICE='CAL-STUDENT-2',
+            NORAGSOC='Secondo alunno',
+            NOCODNOM=settings.CCATCLI,
+        )
+        altro_riga_alunno = Alunno.objects.create(
+            corso=self.corso,
+            alunno=altro_alunno_nominativo,
+            giorno_settimana='lunedi',
+            ora_inizio='17:00',
+            durata_minuti=45,
+        )
+        Lezioni.objects.create(
+            alunno=altro_riga_alunno,
+            data=date(2026, 10, 12),
+            data_ricorrenza=date(2026, 10, 12),
+        )
+
+        response = self.client.get(
+            reverse('corsi:presenze-mensili'),
+            {'anno': '2026', 'mese': '10'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        riepilogo_corso = response.context['riepilogo_corsi'][0]
+        self.assertEqual(riepilogo_corso['minuti'], 45)
+        self.assertEqual(riepilogo_corso['costo'], Decimal('37.50'))
+        self.assertEqual(response.context['totali']['minuti_costo'], 45)
+        self.assertEqual(response.context['totali']['minuti_alunni'], 90)
+        self.assertEqual(len(response.context['riepilogo_alunni']), 2)
+
     def test_billing_counts_each_course_price_once_per_student(self):
         Lezioni.objects.create(
             alunno=self.riga_alunno,
@@ -869,6 +901,56 @@ class CalendarioLezioniTests(TestCase):
         self.assertEqual(response.context['riepilogo_alunni'], [])
         self.assertIsNotNone(response.context['totali'])
         self.assertEqual(response.context['totali']['minuti_assenza'], 0)
+
+    def test_monthly_attendance_report_can_be_filtered_by_course(self):
+        altro_corso = Corso.objects.create(
+            descrizione='Pianoforte',
+            insegnante=self.corso.insegnante,
+            articolo=self.articolo,
+            prezzo='80.00',
+            costo='40.00',
+            data_inizio=date(2026, 10, 1),
+            data_fine=date(2026, 12, 31),
+        )
+        altro_alunno = Alunno.objects.create(
+            corso=altro_corso,
+            alunno=self.alunno_nominativo,
+            giorno_settimana='martedi',
+            ora_inizio='18:00',
+            durata_minuti=60,
+        )
+        Lezioni.objects.create(
+            alunno=altro_alunno,
+            data=date(2026, 10, 13),
+            data_ricorrenza=date(2026, 10, 13),
+        )
+
+        response = self.client.get(
+            reverse('corsi:presenze-mensili'),
+            {
+                'anno': '2026',
+                'mese': '10',
+                'corso': str(altro_corso.pk),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['form'].is_valid())
+        self.assertEqual(
+            response.context['form'].cleaned_data['corso'],
+            altro_corso,
+        )
+        self.assertEqual(len(response.context['dettaglio_lezioni']), 1)
+        self.assertEqual(
+            response.context['dettaglio_lezioni'][0]['corso'],
+            altro_corso,
+        )
+        self.assertEqual(
+            response.context['riepilogo_corsi'][0]['corso'],
+            altro_corso,
+        )
+        self.assertEqual(response.context['totali']['minuti_alunni'], 60)
+        self.assertContains(response, 'name="corso"')
 
     @patch('Corsi.forms.date')
     def test_monthly_attendance_report_defaults_to_next_month(self, mock_date):
