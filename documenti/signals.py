@@ -3,7 +3,6 @@ import os
 from django.db import DatabaseError, connection
 from django.db.models.signals import post_migrate
 from django.dispatch import receiver
-from django.apps import apps
 
 from PaNet1Project import settings
 
@@ -163,7 +162,17 @@ def create_default_CAUSDOCU(sender, **kwargs):
         return
 
     # percorso del file SQL dentro la cartella scripts
-    sql_path = os.path.join(settings.BASE_DIR, sender.name, "scriptsDb", "init.sql")
+
+    engine = settings.DATABASES['default']['ENGINE']
+   
+    if engine == 'django.db.backends.mysql':
+        # Azione specifica per MySQL
+        sql_path = os.path.join(settings.BASE_DIR, sender.name, "scriptsDb", "initMySQL.sql")
+    elif engine == 'django.db.backends.postgresql':
+        # Azione specifica per Postgres
+        sql_path = os.path.join(settings.BASE_DIR, sender.name, "scriptsDb", "initPostgres.sql")
+    else:
+        raise Exception(f"Database non previsto per lo script di popolamento dati: {engine}")
 
     # se il file non esiste, esci
     if not os.path.exists(sql_path):
@@ -179,7 +188,7 @@ def create_default_CAUSDOCU(sender, **kwargs):
         with connection.cursor() as cursor:
             cursor.execute(sql_script)
 
-        print("[post_migrate] Script SQL eseguito correttamente.")
+        print(f"[post_migrate] Script SQL eseguito correttamente: {sql_path}")
         #causdett,causdocu,causmaga,codiciva,comuni,doctipba,modpagam,pag_dett,pagament,unita
         print(_("Tabelle base documenti (causdett,causdocu,causmaga,codiciva,comuni,doctipba,modpagam,pag_dett,pagament,unita) popolate automaticamente tramite post_migrate.")) 
     except DatabaseError as e:
