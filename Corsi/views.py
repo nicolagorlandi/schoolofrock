@@ -76,9 +76,10 @@ class CorsoFormsetMixin:
 
     def get_formset(self):
         if not hasattr(self, '_formset'):
+            corso = getattr(self, 'object', None) or Corso()
             self._formset = AlunnoFormSet(
                 data=self.request.POST if self.request.method == 'POST' else None,
-                instance=getattr(self, 'object', None),
+                instance=corso,
             )
         return self._formset
 
@@ -480,10 +481,11 @@ def presenze_mensili(request):
                     'ricavo': Decimal('0.00'),
                 },
             )
-            # se nel corso ho due lezioni solita ora e solito giorno allora i minuti dell'insegnante
-            # li conto una volta sola - lezione di gruppo
-            slot_corso = (corso.pk, lezione.data, ora_inizio)
-            if slot_corso not in slot_corso_contati:
+            # Nei corsi di gruppo conto una volta lo stesso slot e la stessa durata.
+            slot_corso = (corso.pk, lezione.data, ora_inizio, durata)
+            if not corso.di_gruppo:
+                riepilogo_corso['minuti'] += durata
+            elif slot_corso not in slot_corso_contati:
                 riepilogo_corso['minuti'] += durata
                 slot_corso_contati.add(slot_corso)
 
@@ -504,8 +506,11 @@ def presenze_mensili(request):
 
         for riepilogo_alunno in alunni_per_chiave.values():
             corso = riepilogo_alunno['corso']
-            # gli alunni non pagano a minuti ma a mensilita
-            riepilogo_alunno['ricavo'] = corso.prezzo
+            riepilogo_alunno['ricavo'] = (
+                corso.prezzo
+                * Decimal(riepilogo_alunno['minuti'])
+                / Decimal(corso.durata_minuti)
+            ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             corsi_per_id[corso.pk]['ricavo'] += riepilogo_alunno['ricavo']
 
         for riepilogo_corso in corsi_per_id.values():

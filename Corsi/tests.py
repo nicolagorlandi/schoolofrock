@@ -176,6 +176,8 @@ class CalendarioLezioniTests(TestCase):
                 'descrizione': 'Chitarra acustica',
                 'insegnante': self.corso.insegnante_id,
                 'articolo': self.articolo.ARCODICE,
+                'durata_minuti': '60',
+                'di_gruppo': 'on',
                 'prezzo': '100.00',
                 'costo': '50.00',
                 'data_inizio': '2026-10-01',
@@ -196,6 +198,7 @@ class CalendarioLezioniTests(TestCase):
         self.corso.refresh_from_db()
         self.assertEqual(self.corso.descrizione, 'Chitarra acustica')
         self.assertEqual(self.corso.articolo, self.articolo)
+        self.assertTrue(self.corso.di_gruppo)
 
     def test_invalid_course_form_shows_a_toast(self):
         response = self.client.post(
@@ -204,6 +207,7 @@ class CalendarioLezioniTests(TestCase):
                 'descrizione': 'Chitarra acustica',
                 'insegnante': self.corso.insegnante_id,
                 'articolo': self.articolo.ARCODICE,
+                'durata_minuti': '60',
                 'prezzo': '100.00',
                 'costo': '50.00',
                 'data_inizio': '',
@@ -247,6 +251,20 @@ class CalendarioLezioniTests(TestCase):
             'Chitarra',
         )
 
+    def test_new_student_duration_defaults_to_course_duration(self):
+        self.corso.durata_minuti = 75
+        self.corso.save()
+
+        response = self.client.get(
+            reverse('corsi:modifica', args=[self.corso.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context['formset'].empty_form['durata_minuti'].value(),
+            75,
+        )
+
     def test_course_form_renders_saved_dates_in_html_date_format(self):
         response = self.client.get(
             reverse('corsi:modifica', args=[self.corso.pk])
@@ -267,6 +285,7 @@ class CalendarioLezioniTests(TestCase):
             reverse('corsi:nuovo'),
             {
                 'descrizione': 'Pianoforte',
+                'durata_minuti': '75',
                 'insegnante': self.corso.insegnante_id,
                 'prezzo': '120.00',
                 'costo': '60.00',
@@ -279,13 +298,16 @@ class CalendarioLezioniTests(TestCase):
                 'alunni-0-alunno': self.alunno_nominativo.pk,
                 'alunni-0-giorno_settimana': 'martedi',
                 'alunni-0-ora_inizio': '18:00',
-                'alunni-0-durata_minuti': '60',
+                'alunni-0-durata_minuti': '75',
             },
         )
 
         self.assertEqual(response.status_code, 302)
         corso_creato = Corso.objects.get(descrizione='Pianoforte')
         self.assertEqual(corso_creato.insegnante_id, self.corso.insegnante_id)
+        self.assertEqual(corso_creato.durata_minuti, 75)
+        self.assertFalse(corso_creato.di_gruppo)
+        self.assertEqual(corso_creato.alunni.get().durata_minuti, 75)
 
     def test_calendar_page_renders(self):
         response = self.client.get(reverse('corsi:calendario-lezioni'))
@@ -580,6 +602,25 @@ class CalendarioLezioniTests(TestCase):
         self.assertEqual(totali['ricavo'], Decimal('150.00'))
         self.assertEqual(totali['differenza'], Decimal('75.00'))
 
+    def test_monthly_revenue_is_prorated_by_course_duration(self):
+        self.corso.durata_minuti = 90
+        self.corso.save()
+
+        response = self.client.get(
+            reverse('corsi:presenze-mensili'),
+            {'anno': '2026', 'mese': '10'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context['riepilogo_alunni'][0]['ricavo'],
+            Decimal('50.00'),
+        )
+        self.assertEqual(
+            response.context['riepilogo_corsi'][0]['ricavo'],
+            Decimal('50.00'),
+        )
+
     def test_monthly_course_cost_counts_shared_time_slot_once(self):
         altro_alunno_nominativo = Nominativi.objects.create(
             NOCODICE='CAL-STUDENT-2',
@@ -606,11 +647,33 @@ class CalendarioLezioniTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         riepilogo_corso = response.context['riepilogo_corsi'][0]
-        self.assertEqual(riepilogo_corso['minuti'], 45)
-        self.assertEqual(riepilogo_corso['costo'], Decimal('37.50'))
-        self.assertEqual(response.context['totali']['minuti_costo'], 45)
+        self.assertEqual(riepilogo_corso['minuti'], 90)
+        self.assertEqual(riepilogo_corso['costo'], Decimal('75.00'))
+        self.assertEqual(response.context['totali']['minuti_costo'], 90)
         self.assertEqual(response.context['totali']['minuti_alunni'], 90)
         self.assertEqual(len(response.context['riepilogo_alunni']), 2)
+
+        self.corso.di_gruppo = True
+        self.corso.save()
+        response = self.client.get(
+            reverse('corsi:presenze-mensili'),
+            {'anno': '2026', 'mese': '10'},
+        )
+
+        riepilogo_corso = response.context['riepilogo_corsi'][0]
+        self.assertEqual(riepilogo_corso['minuti'], 45)
+        self.assertEqual(riepilogo_corso['costo'], Decimal('37.50'))
+
+        altro_riga_alunno.durata_minuti = 30
+        altro_riga_alunno.save()
+        response = self.client.get(
+            reverse('corsi:presenze-mensili'),
+            {'anno': '2026', 'mese': '10'},
+        )
+
+        riepilogo_corso = response.context['riepilogo_corsi'][0]
+        self.assertEqual(riepilogo_corso['minuti'], 75)
+        self.assertEqual(riepilogo_corso['costo'], Decimal('62.50'))
 
     def test_billing_counts_each_course_price_once_per_student(self):
         Lezioni.objects.create(

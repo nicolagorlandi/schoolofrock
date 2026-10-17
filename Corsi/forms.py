@@ -145,6 +145,8 @@ class CorsoForm(forms.ModelForm):
         model = Corso
         fields = [
             'descrizione',
+            'durata_minuti',
+            'di_gruppo',
             'insegnante',
             'articolo',
             'prezzo',
@@ -154,6 +156,8 @@ class CorsoForm(forms.ModelForm):
         ]
         labels = {
             'descrizione': _('Descrizione'),
+            'durata_minuti': _('Durata corso (minuti)'),
+            'di_gruppo': _('Corso di gruppo'),
             'insegnante': _('Insegnante'),
             'articolo': _('Articolo per fatturazione'),
             'prezzo': _('Prezzo'),
@@ -163,6 +167,7 @@ class CorsoForm(forms.ModelForm):
         }
         widgets = {
             'descrizione': forms.TextInput(attrs={'maxlength': 80}),
+            'durata_minuti': forms.NumberInput(attrs={'min': '1', 'step': '1'}),
             'insegnante': autocomplete.ModelSelect2(
                 url='corsi:insegnante-autocomplete',
                 attrs={'data-placeholder': _('Cerca un fornitore'), 'data-minimum-input-length': 2},
@@ -227,6 +232,13 @@ class AlunnoForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        corso = getattr(self.instance, 'corso', None)
+        if (
+            not self.is_bound
+            and not self.instance.pk
+            and corso is not None
+        ):
+            self.initial.setdefault('durata_minuti', corso.durata_minuti)
         self.fields['alunno'].queryset = Nominativi.objects.filter(
             NOCODNOM=settings.CCATCLI
         ).order_by('NORAGSOC')

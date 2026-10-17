@@ -1,9 +1,16 @@
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 
 class Corso(models.Model):
     descrizione = models.CharField(max_length=80, blank=True)
+    durata_minuti = models.PositiveIntegerField(
+        default=60,
+        validators=[MinValueValidator(1)],
+        verbose_name=_('Durata (minuti)'),
+    )
+    di_gruppo = models.BooleanField(default=False, verbose_name=_('Di gruppo'))
     insegnante = models.ForeignKey(
         'documenti.Nominativi',
         on_delete=models.PROTECT,

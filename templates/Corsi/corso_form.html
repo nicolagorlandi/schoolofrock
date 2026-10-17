@@ -24,6 +24,8 @@
 
     <div class="row">
         <div class="col-md-12 mb-3">{{ form.descrizione|bootstrap }}</div>
+        <div class="col-md-3 mb-3">{{ form.durata_minuti|bootstrap }}</div>
+        <div class="col-md-3 mb-3">{{ form.di_gruppo|bootstrap }}</div>
         <div class="col-md-6 mb-3">{{ form.insegnante|bootstrap }}</div>
         <div class="col-md-6 mb-3">{{ form.articolo|bootstrap }}</div>
         <div class="col-md-3 mb-3">{{ form.prezzo|bootstrap }}</div>
@@ -98,11 +100,39 @@
 </form>
 
 <script>
+    const courseDuration = document.getElementById('id_durata_minuti');
+    let previousDefaultDuration = courseDuration.value;
+    courseDuration.addEventListener('input', function () {
+        const initialForms = Number(
+            document.getElementById('id_alunni-INITIAL_FORMS').value
+        );
+        document.querySelectorAll(
+            '#alunni-formset tr [name$="-durata_minuti"]'
+        ).forEach(function (duration) {
+            const formIndex = Number(
+                duration.name.match(/-(\d+)-durata_minuti$/)[1]
+            );
+            if (
+                formIndex >= initialForms &&
+                duration.value === previousDefaultDuration
+            ) {
+                duration.value = courseDuration.value;
+            }
+        });
+        previousDefaultDuration = courseDuration.value;
+    });
+
     document.getElementById('add-alunno').addEventListener('click', function () {
         const totalForms = document.getElementById('id_alunni-TOTAL_FORMS');
         const rowTemplate = document.getElementById('alunno-empty-form').innerHTML;
         const newRow = rowTemplate.split('__prefix__').join(totalForms.value);
         document.getElementById('alunni-formset').insertAdjacentHTML('beforeend', newRow);
+        const duration = document.querySelector(
+            '#alunni-formset tr:last-child [name$="-durata_minuti"]'
+        );
+        if (duration && courseDuration.value) {
+            duration.value = courseDuration.value;
+        }
         totalForms.value = Number(totalForms.value) + 1;
     });
 </script>

@@ -19,6 +19,149 @@
         return;
     }
 
+    const sortStyles = document.createElement('style');
+    sortStyles.textContent = `
+        th[data-table-sortable] {
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        th[data-table-sortable]::after {
+            content: ' ↕';
+            color: #6c757d;
+        }
+        th[data-table-sortable][aria-sort="ascending"]::after {
+            content: ' ↑';
+            color: inherit;
+        }
+        th[data-table-sortable][aria-sort="descending"]::after {
+            content: ' ↓';
+            color: inherit;
+        }
+    `;
+    document.head.appendChild(sortStyles);
+
+    const italianCollator = new Intl.Collator('it', {
+        numeric: true,
+        sensitivity: 'base'
+    });
+
+    function sortableValue(value) {
+        const text = value.trim();
+        const date = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+        if (date) {
+            const year = Number(date[3]) < 100
+                ? 2000 + Number(date[3])
+                : Number(date[3]);
+            return {
+                type: 'date',
+                value: year * 10000 + Number(date[2]) * 100 + Number(date[1])
+            };
+        }
+
+        const time = text.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+        if (time) {
+            return {
+                type: 'time',
+                value: Number(time[1]) * 60 + Number(time[2])
+            };
+        }
+
+        let number = text
+            .replace(/[€%]/g, '')
+            .replace(/[\s\u00a0]/g, '');
+        if (/^-?\d[\d.,]*$/.test(number)) {
+            if (number.includes(',')) {
+                number = number.replace(/\./g, '').replace(',', '.');
+            } else if (/^-?\d{1,3}(?:\.\d{3})+$/.test(number)) {
+                number = number.replace(/\./g, '');
+            }
+            const parsedNumber = Number(number);
+            if (Number.isFinite(parsedNumber)) {
+                return { type: 'number', value: parsedNumber };
+            }
+        }
+
+        return { type: 'text', value: text };
+    }
+
+    function sortTable(table, columnIndex, header) {
+        const direction = header.getAttribute('aria-sort') === 'ascending'
+            ? 'descending'
+            : 'ascending';
+        const multiplier = direction === 'ascending' ? 1 : -1;
+
+        Array.from(table.tBodies).forEach(function (body) {
+            const rows = Array.from(body.rows).map(function (row) {
+                const cell = row.cells[columnIndex];
+                return {
+                    row: row,
+                    value: sortableValue(cell ? cellText(cell) : '')
+                };
+            });
+            const nonEmptyRows = rows.filter(function (item) {
+                return item.value.value !== '';
+            });
+            const valueType = nonEmptyRows.length &&
+                nonEmptyRows.every(function (item) {
+                    return item.value.type === nonEmptyRows[0].value.type;
+                })
+                ? nonEmptyRows[0].value.type
+                : 'text';
+
+            rows.sort(function (left, right) {
+                const leftValue = left.value;
+                const rightValue = right.value;
+                const leftEmpty = leftValue.value === '';
+                const rightEmpty = rightValue.value === '';
+                if (leftEmpty || rightEmpty) {
+                    return leftEmpty === rightEmpty ? 0 : (leftEmpty ? 1 : -1);
+                }
+
+                const comparison = valueType === 'text'
+                    ? italianCollator.compare(
+                        String(leftValue.value),
+                        String(rightValue.value)
+                    )
+                    : leftValue.value - rightValue.value;
+                return comparison * multiplier;
+            });
+
+            rows.forEach(function (item) {
+                body.appendChild(item.row);
+            });
+        });
+        Array.from(table.tHead.rows).forEach(function (row) {
+            Array.from(row.cells).forEach(function (cell) {
+                cell.removeAttribute('aria-sort');
+            });
+        });
+        header.setAttribute('aria-sort', direction);
+    }
+
+    exportableTables.forEach(function (table) {
+        if (!table.tHead.rows.length) {
+            return;
+        }
+        const headers = table.tHead.rows[table.tHead.rows.length - 1].cells;
+        Array.from(headers).forEach(function (header, columnIndex) {
+            if (!isExportableColumn(header.innerText)) {
+                return;
+            }
+            header.setAttribute('data-table-sortable', '');
+            header.setAttribute('tabindex', '0');
+            header.setAttribute('aria-label', `${header.innerText.trim()}, ordina`);
+            header.addEventListener('click', function () {
+                sortTable(table, columnIndex, header);
+            });
+            header.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    sortTable(table, columnIndex, header);
+                }
+            });
+        });
+    });
+
     const toolbar = document.createElement('div');
     toolbar.className = 'd-flex justify-content-end mb-3';
     const button = document.createElement('button');
