@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import F, Prefetch, Q, Sum
+from django.db.models import Case, F, IntegerField, Prefetch, Q, Sum, Value, When
 from django import forms
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -80,6 +80,20 @@ class CorsoFormsetMixin:
             self._formset = AlunnoFormSet(
                 data=self.request.POST if self.request.method == 'POST' else None,
                 instance=corso,
+                queryset=Alunno.objects.order_by(
+                    Case(
+                        When(giorno_settimana='lunedi', then=Value(1)),
+                        When(giorno_settimana='martedi', then=Value(2)),
+                        When(giorno_settimana='mercoledi', then=Value(3)),
+                        When(giorno_settimana='giovedi', then=Value(4)),
+                        When(giorno_settimana='venerdi', then=Value(5)),
+                        When(giorno_settimana='sabato', then=Value(6)),
+                        When(giorno_settimana='domenica', then=Value(7)),
+                        output_field=IntegerField(),
+                    ),
+                    'ora_inizio',
+                    'alunno__NORAGSOC',
+                ),
             )
         return self._formset
 

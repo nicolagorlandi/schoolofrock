@@ -279,6 +279,67 @@ class CalendarioLezioniTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Chitarra Clapton')
+        self.assertContains(response, 'Durata (minuti)')
+        self.assertContains(response, 'Di gruppo')
+        self.assertContains(response, '<td>60</td>', html=True)
+        self.assertContains(response, '<td>No</td>', html=True)
+
+    def test_course_edit_orders_students_by_weekday_and_start_time(self):
+        secondo_alunno = Nominativi.objects.create(
+            NOCODICE='CAL-STUDENT-2',
+            NORAGSOC='Secondo alunno',
+            NOCODNOM=settings.CCATCLI,
+        )
+        terzo_alunno = Nominativi.objects.create(
+            NOCODICE='CAL-STUDENT-3',
+            NORAGSOC='Terzo alunno',
+            NOCODNOM=settings.CCATCLI,
+        )
+        alunno_stesso_orario = Nominativi.objects.create(
+            NOCODICE='CAL-STUDENT-4',
+            NORAGSOC='Aardvark',
+            NOCODNOM=settings.CCATCLI,
+        )
+        riga_stesso_orario = Alunno.objects.create(
+            corso=self.corso,
+            alunno=alunno_stesso_orario,
+            giorno_settimana='lunedi',
+            ora_inizio='17:00',
+            durata_minuti=45,
+        )
+        Alunno.objects.create(
+            corso=self.corso,
+            alunno=secondo_alunno,
+            giorno_settimana='mercoledi',
+            ora_inizio='17:00',
+            durata_minuti=45,
+        )
+        Alunno.objects.create(
+            corso=self.corso,
+            alunno=terzo_alunno,
+            giorno_settimana='martedi',
+            ora_inizio='18:00',
+            durata_minuti=45,
+        )
+
+        response = self.client.get(
+            reverse('corsi:modifica', args=[self.corso.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [
+                form.instance.pk
+                for form in response.context['formset'].forms
+                if form.instance.pk
+            ],
+            [
+                riga_stesso_orario.pk,
+                self.riga_alunno.pk,
+                terzo_alunno.corsi_frequentati.get().pk,
+                secondo_alunno.corsi_frequentati.get().pk,
+            ],
+        )
 
     def test_creating_course_saves_its_description(self):
         response = self.client.post(

@@ -22,6 +22,8 @@
                 <th>{% trans "Articolo fatturazione" %}</th>
                 <th>{% trans "Prezzo" %}</th>
                 <th>{% trans "Costo" %}</th>
+                <th>{% trans "Durata (minuti)" %}</th>
+                <th>{% trans "Di gruppo" %}</th>
                 <th>{% trans "Inizio" %}</th>
                 <th>{% trans "Fine" %}</th>
                 <th>{% trans "Alunni" %}</th>
@@ -36,6 +38,8 @@
                 <td>{{ corso.articolo|default:"—" }}</td>
                 <td>{{ corso.prezzo|floatformat:2 }}</td>
                 <td>{{ corso.costo|floatformat:2 }}</td>
+                <td>{{ corso.durata_minuti }}</td>
+                <td>{{ corso.di_gruppo|yesno:"Sì,No" }}</td>
                 <td>{{ corso.data_inizio|date:"SHORT_DATE_FORMAT" }}</td>
                 <td>{{ corso.data_fine|date:"SHORT_DATE_FORMAT" }}</td>
                 <td>
@@ -52,7 +56,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="9" class="text-center">{% trans "Non ci sono corsi." %}</td>
+                <td colspan="11" class="text-center">{% trans "Non ci sono corsi." %}</td>
             </tr>
             {% endfor %}
         </tbody>
