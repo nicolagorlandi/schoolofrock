@@ -4,7 +4,7 @@ from django.forms import FileField, Form, TextInput, ValidationError, widgets
 from .models import *
 from django.utils.translation import gettext as _
 from django.forms import ModelForm, Textarea
-from django.forms import BaseInlineFormSet
+from django.forms import BaseInlineFormSet, inlineformset_factory
 from django.forms.models import modelformset_factory
 from bootstrap_datepicker_plus.widgets import DatePickerInput
 from dal import autocomplete
@@ -147,6 +147,7 @@ class CausdocuForm(forms.ModelForm):
             self.instance.slug = slugify(self.instance.CDCODICE)
         return super().save(commit=commit)
 
+
     # per motivi di velocita impostata la ricerca solo sui primi 5 record!
     ARCODGRU = forms.ModelChoiceField(label=_('Gruppo'),queryset=Grmemast.objects.all()[:5], 
                                         empty_label="",
@@ -171,6 +172,62 @@ class CausdocuForm(forms.ModelForm):
                                             'class': "form-select text-center fw-bold",
                                             'style': 'max-width: auto;',
                                         }))             
+
+
+class PagamentiForm(forms.ModelForm):
+    class Meta:
+        model = PAGAMENTI
+        fields = ['PACODICE', 'PADESCRI', 'PADESEAS']
+        labels = {
+            'PACODICE': _('Codice'),
+            'PADESCRI': _('Descrizione'),
+            'PADESEAS': _('Descrizione per TeamSystem'),
+        }
+
+
+class PagamentiDettaglioForm(forms.ModelForm):
+    class Meta:
+        model = PAG_DETT
+        fields = [
+            'PDNUMSCA',
+            'PDGIORNO',
+            'PDINTERV',
+            'PDPERCEN',
+            'PDTIPPAG',
+            'PDPAGATA',
+            'PD_FISSO',
+        ]
+        labels = {
+            'PDNUMSCA': _('Numero rata'),
+            'PDGIORNO': _('Decorrenza'),
+            'PDINTERV': _('Intervallo (mesi)'),
+            'PDPERCEN': _('Percentuale'),
+            'PDTIPPAG': _('Tipo pagamento'),
+            'PDPAGATA': _('Pagata'),
+            'PD_FISSO': _('Giorno del mese'),
+        }
+        widgets = {
+            'PDNUMSCA': forms.NumberInput(attrs={'min': '1', 'step': '1'}),
+            'PDINTERV': forms.NumberInput(attrs={'min': '0', 'step': '1'}),
+            'PDPERCEN': forms.NumberInput(
+                attrs={'min': '0', 'step': '0.0001'}
+            ),
+            'PDPAGATA': forms.Select(
+                choices=[('N', _('No')), ('S', _('Sì'))],
+            ),
+            'PD_FISSO': forms.NumberInput(attrs={'min': '0', 'max': '31'}),
+        }
+
+
+PagamentiDettaglioFormSet = inlineformset_factory(
+    PAGAMENTI,
+    PAG_DETT,
+    form=PagamentiDettaglioForm,
+    extra=0,
+    can_delete=True,
+)
+
+
 # caricamento ordini!
 class creaOrdineForm(ModelForm):
 

@@ -904,14 +904,14 @@ class CalendarioLezioniTests(TestCase):
         self.assertEqual(len(response.context['righe_fatturazione']), 1)
         riepilogo = response.context['righe_fatturazione'][0]
         self.assertEqual(len(riepilogo['corsi']), 2)
-        self.assertEqual(riepilogo['totale'], Decimal('160.00'))
+        self.assertEqual(riepilogo['totale'], Decimal('105.00'))
         self.assertEqual(
             [voce['importo'] for voce in riepilogo['corsi']],
-            [Decimal('100.00'), Decimal('60.00')],
+            [Decimal('75.00'), Decimal('30.00')],
         )
         self.assertEqual(
             response.context['totale_corsi_da_pagare'],
-            Decimal('160.00'),
+            Decimal('105.00'),
         )
         self.assertTrue(riepilogo['generabile'])
         self.assertContains(response, 'Genera ricevuta')
@@ -1011,7 +1011,7 @@ class CalendarioLezioniTests(TestCase):
         )
         self.assertEqual(
             response.context['righe_fatturazione'][0]['totale'],
-            Decimal('160.00'),
+            Decimal('105.00'),
         )
         self.assertContains(response, 'Apri ricevuta')
         self.assertContains(
@@ -1032,15 +1032,15 @@ class CalendarioLezioniTests(TestCase):
         self.assertEqual(len(righe_documento), 2)
         self.assertEqual(righe_documento[0].DOCODART, self.articolo)
         self.assertEqual(righe_documento[0].DOQTAUM1, Decimal('1'))
-        self.assertEqual(righe_documento[0].DOPREZZO, Decimal('100.00'))
+        self.assertEqual(righe_documento[0].DOPREZZO, Decimal('75.00'))
         self.assertEqual(righe_documento[1].DOCODART, secondo_articolo)
-        self.assertEqual(righe_documento[1].DOPREZZO, Decimal('60.00'))
+        self.assertEqual(righe_documento[1].DOPREZZO, Decimal('30.00'))
         castelletto_iva = Rivadett.objects.get(RICODICE=documento)
         self.assertEqual(castelletto_iva.RICODIVA, self.articolo.ARCODIVA)
-        self.assertEqual(castelletto_iva.RIIMPONI, Decimal('160.00'))
-        self.assertEqual(castelletto_iva.RIIMPOST, Decimal('35.20'))
+        self.assertEqual(castelletto_iva.RIIMPONI, Decimal('105.00'))
+        self.assertEqual(castelletto_iva.RIIMPOST, Decimal('23.10'))
         scadenza = Scadenze.objects.get(SCCODICE=documento)
-        self.assertEqual(scadenza.SCIMPSCA, Decimal('195.00'))
+        self.assertEqual(scadenza.SCIMPSCA, Decimal('128.00'))
         self.assertEqual(
             Lezioni.objects.filter(
                 alunno__alunno=self.alunno_nominativo,

@@ -109,6 +109,7 @@ def create_default_menu(sender, **kwargs):
         ("Clienti", "clienti", 1),
         ("Fornitori", "fornitori", 2),
         ("Articoli", "products", 3),
+        ("Pagamenti", "pagamenti-list", 5),
     ):
         MenuItem.objects.get_or_create(
             label=label,

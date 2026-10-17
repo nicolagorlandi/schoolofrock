@@ -68,6 +68,14 @@ def _importo_orario(minuti, tariffa_oraria):
     ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
 
+def _ricavo_mensile_alunno(corso, durata_minuti_alunno):
+    return (
+        corso.prezzo
+        * Decimal(durata_minuti_alunno)
+        / Decimal(corso.durata_minuti)
+    ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+
 class CorsoFormsetMixin:
     model = Corso
     form_class = CorsoForm
@@ -582,11 +590,10 @@ def presenze_mensili(request):
 
         for riepilogo_alunno in alunni_per_chiave.values():
             corso = riepilogo_alunno['corso']
-            riepilogo_alunno['ricavo'] = (
-                corso.prezzo
-                * Decimal(riepilogo_alunno['durata_minuti_configurata_alunno'])
-                / Decimal(corso.durata_minuti)
-            ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            riepilogo_alunno['ricavo'] = _ricavo_mensile_alunno(
+                corso,
+                riepilogo_alunno['durata_minuti_configurata_alunno'],
+            )
             corsi_per_id[corso.pk]['ricavo'] += riepilogo_alunno['ricavo']
 
         for riepilogo_corso in corsi_per_id.values():
@@ -736,7 +743,11 @@ def fatturazione_mensile(request):
             corso = lezione.alunno.corso
             corso_riepilogo = riepilogo['corsi_per_id'].setdefault(
                 corso.pk,
-                {'corso': corso, 'minuti': 0},
+                {
+                    'corso': corso,
+                    'durata_minuti_alunno': lezione.alunno.durata_minuti,
+                    'minuti': 0,
+                },
             )
             corso_riepilogo['minuti'] += (
                 lezione.durata_minuti or lezione.alunno.durata_minuti
@@ -769,7 +780,10 @@ def fatturazione_mensile(request):
             articolo_mancante = False
             for corso_riepilogo in riepilogo['corsi_per_id'].values():
                 corso = corso_riepilogo['corso']
-                importo = corso.prezzo
+                importo = _ricavo_mensile_alunno(
+                    corso,
+                    corso_riepilogo['durata_minuti_alunno'],
+                )
                 totale += importo
                 articolo_mancante = (
                     articolo_mancante or corso.articolo_id is None
@@ -889,7 +903,13 @@ def _crea_ricevuta_alunno(
                 raise ValidationError(
                     f'Il corso "{corso}" non ha un articolo di fatturazione associato.'
                 )
-            corsi_per_id.setdefault(corso.pk, {'corso': corso})
+            corsi_per_id.setdefault(
+                corso.pk,
+                {
+                    'corso': corso,
+                    'durata_minuti_alunno': lezione.alunno.durata_minuti,
+                },
+            )
 
         data_documento = timezone.localtime(timezone.now()).date()
         serie = str(data_documento.year)
@@ -924,7 +944,10 @@ def _crea_ricevuta_alunno(
                 DONUMRIG=numero_riga,
                 DOCODART=corso.articolo,
                 DOQTAUM1=Decimal('1'),
-                DOPREZZO=corso.prezzo,
+                DOPREZZO=_ricavo_mensile_alunno(
+                    corso,
+                    riepilogo['durata_minuti_alunno'],
+                ),
                 DODESART=str(corso),
             )
 

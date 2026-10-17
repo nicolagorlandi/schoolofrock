@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from decimal import Decimal
 from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -11,7 +12,14 @@ from django.urls import reverse
 from openpyxl import load_workbook
 
 from documenti.exports import esporta_tabelle_excel
-from documenti.models import Causdocu, MenuItem, Nominativi, Ord_Mast, PAGAMENTI
+from documenti.models import (
+    Causdocu,
+    MenuItem,
+    Nominativi,
+    Ord_Mast,
+    PAG_DETT,
+    PAGAMENTI,
+)
 from documenti.views import nominativi, nominativi_list_url
 from PaNet1Project import settings
 
@@ -164,6 +172,18 @@ class CausdocuManagementTests(TestCase):
         data.update(overrides)
         return data
 
+    def pagamento_formset_data(self, rows=(), initial_forms=0):
+        data = {
+            'dettagli-TOTAL_FORMS': str(len(rows)),
+            'dettagli-INITIAL_FORMS': str(initial_forms),
+            'dettagli-MIN_NUM_FORMS': '0',
+            'dettagli-MAX_NUM_FORMS': '1000',
+        }
+        for index, row in enumerate(rows):
+            for field, value in row.items():
+                data[f'dettagli-{index}-{field}'] = str(value)
+        return data
+
     def test_menu_places_document_causals_under_archives_documents(self):
         voce = MenuItem.objects.get(
             label='Causali Documenti',
@@ -172,6 +192,163 @@ class CausdocuManagementTests(TestCase):
 
         self.assertEqual(voce.parent.label, 'Documenti')
         self.assertEqual(voce.parent.parent.label, 'Archivi')
+
+    def test_menu_places_payment_methods_under_archives(self):
+        voce = MenuItem.objects.get(
+            label='Pagamenti',
+            url_name='pagamenti-list',
+        )
+
+        self.assertEqual(voce.parent.label, 'Archivi')
+
+    def test_create_update_and_list_payment_methods(self):
+        form_response = self.client.get(reverse('pagamenti-create'))
+        self.assertEqual(form_response.status_code, 200)
+        self.assertContains(form_response, 'id_dettagli-TOTAL_FORMS')
+        self.assertContains(form_response, 'Aggiungi rata')
+
+        response = self.client.post(
+            reverse('pagamenti-create'),
+            {
+                'PACODICE': 'BON',
+                'PADESCRI': 'Bonifico bancario',
+                'PADESEAS': 'Bank transfer',
+                **self.pagamento_formset_data(),
+            },
+        )
+
+        self.assertRedirects(response, reverse('pagamenti-list'))
+        pagamento = PAGAMENTI.objects.get(pk='BON')
+        self.assertEqual(pagamento.slug, 'bon')
+        self.assertEqual(pagamento.PADESEAS, 'Bank transfer')
+
+        response = self.client.post(
+            reverse('pagamenti-update', args=[pagamento.pk]),
+            {
+                'PACODICE': 'BON',
+                'PADESCRI': 'Bonifico aggiornato',
+                'PADESEAS': 'Updated transfer',
+                **self.pagamento_formset_data(),
+            },
+        )
+
+        self.assertRedirects(response, reverse('pagamenti-list'))
+        pagamento.refresh_from_db()
+        self.assertEqual(pagamento.PADESCRI, 'Bonifico aggiornato')
+        self.assertContains(
+            self.client.get(reverse('pagamenti-list')),
+            'Updated transfer',
+        )
+
+    def test_create_and_update_payment_installments(self):
+        response = self.client.post(
+            reverse('pagamenti-create'),
+            {
+                'PACODICE': 'RATE',
+                'PADESCRI': 'Pagamento rateale',
+                'PADESEAS': '',
+                **self.pagamento_formset_data([{
+                    'PDNUMSCA': 1,
+                    'PDGIORNO': 'Data Doc.',
+                    'PDINTERV': 1,
+                    'PDPERCEN': '50.0000',
+                    'PDPAGATA': 'N',
+                    'PD_FISSO': 0,
+                }]),
+            },
+        )
+
+        self.assertRedirects(response, reverse('pagamenti-list'))
+        pagamento = PAGAMENTI.objects.get(pk='RATE')
+        rata = PAG_DETT.objects.get(PACODICE=pagamento, PDNUMSCA=1)
+        self.assertEqual(rata.PDPERCEN, Decimal('50.0000'))
+
+        response = self.client.post(
+            reverse('pagamenti-update', args=[pagamento.pk]),
+            {
+                'PACODICE': 'RATE',
+                'PADESCRI': 'Pagamento rateale aggiornato',
+                'PADESEAS': '',
+                **self.pagamento_formset_data(
+                    [{
+                        'id': rata.pk,
+                        'PDNUMSCA': 1,
+                        'PDGIORNO': 'Fine Mese',
+                        'PDINTERV': 2,
+                        'PDPERCEN': '100.0000',
+                        'PDPAGATA': 'S',
+                        'PD_FISSO': 10,
+                    }],
+                    initial_forms=1,
+                ),
+            },
+        )
+
+        self.assertRedirects(response, reverse('pagamenti-list'))
+        rata.refresh_from_db()
+        self.assertEqual(rata.PDGIORNO, 'Fine Mese')
+        self.assertEqual(rata.PDPERCEN, Decimal('100.0000'))
+        self.assertEqual(rata.PDPAGATA, 'S')
+        self.assertContains(
+            self.client.get(reverse('pagamenti-list')),
+            'Fine Mese',
+        )
+
+    def test_delete_payment_installment_from_update_form(self):
+        pagamento = PAGAMENTI.objects.create(
+            PACODICE='DELRT',
+            PADESCRI='Pagamento da aggiornare',
+            slug='delrt',
+        )
+        rata = PAG_DETT.objects.create(
+            PACODICE=pagamento,
+            PDNUMSCA=1,
+            PDPERCEN=50,
+        )
+
+        response = self.client.post(
+            reverse('pagamenti-update', args=[pagamento.pk]),
+            {
+                'PACODICE': 'DELRT',
+                'PADESCRI': 'Pagamento da aggiornare',
+                'PADESEAS': '',
+                **self.pagamento_formset_data(
+                    [{
+                        'id': rata.pk,
+                        'PDNUMSCA': 1,
+                        'DELETE': 'on',
+                    }],
+                    initial_forms=1,
+                ),
+            },
+        )
+
+        self.assertRedirects(response, reverse('pagamenti-list'))
+        self.assertFalse(PAG_DETT.objects.filter(pk=rata.pk).exists())
+
+    def test_cannot_delete_payment_method_used_by_a_document_causal(self):
+        pagamento = PAGAMENTI.objects.create(
+            PACODICE='USEDP',
+            PADESCRI='Metodo utilizzato',
+            slug='usedp',
+        )
+        causale = Causdocu.objects.create(
+            CDCODICE='USE01',
+            CDDESCRI='Causale pagamento',
+            CDTIPDOC='RF',
+            CDQUALIT=0,
+            CDPAGDEF=pagamento,
+            slug='use01',
+        )
+
+        response = self.client.post(
+            reverse('pagamenti-delete', args=[pagamento.pk]),
+            follow=True,
+        )
+
+        self.assertContains(response, 'è utilizzato da documenti')
+        self.assertTrue(PAGAMENTI.objects.filter(pk=pagamento.pk).exists())
+        self.assertTrue(Causdocu.objects.filter(pk=causale.pk).exists())
 
     def test_create_and_update_document_causal(self):
         pagamento = PAGAMENTI.objects.create(

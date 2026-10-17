@@ -41,6 +41,11 @@ path('causali-documenti/nuova/', views.CausdocuCreateView.as_view(), name='causa
 path('causali-documenti/<str:pk>/modifica/', views.CausdocuUpdateView.as_view(), name='causali-documenti-update'),
 path('causali-documenti/<str:pk>/elimina/', views.causdocu_delete, name='causali-documenti-delete'),
 
+path('pagamenti/', views.PagamentiListView.as_view(), name='pagamenti-list'),
+path('pagamenti/nuovo/', views.PagamentiCreateView.as_view(), name='pagamenti-create'),
+path('pagamenti/<str:pk>/modifica/', views.PagamentiUpdateView.as_view(), name='pagamenti-update'),
+path('pagamenti/<str:pk>/elimina/', views.pagamenti_delete, name='pagamenti-delete'),
+
 path('clienti',login_required(views.clienti), name='clienti'),
 path('fornitori',login_required(views.fornitori), name='fornitori'),
 

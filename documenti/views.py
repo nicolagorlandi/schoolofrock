@@ -405,6 +405,101 @@ class CausdocuUpdateView(generic.UpdateView):
     success_url = reverse_lazy('causali-documenti-list')
 
 
+@method_decorator(
+    permission_required('documenti.Manager_Ordini', raise_exception=True),
+    name='dispatch',
+)
+class PagamentiListView(generic.ListView):
+    model = PAGAMENTI
+    template_name = 'documenti/pagamenti_list.html'
+    context_object_name = 'pagamenti'
+
+    def get_queryset(self):
+        return PAGAMENTI.objects.prefetch_related('pag_dett_set').order_by(
+            'PACODICE'
+        )
+
+
+class PagamentiFormsetMixin:
+    formset_prefix = 'dettagli'
+
+    def get_formset(self):
+        if not hasattr(self, '_formset'):
+            pagamento = getattr(self, 'object', None) or PAGAMENTI()
+            self._formset = PagamentiDettaglioFormSet(
+                data=self.request.POST if self.request.method == 'POST' else None,
+                instance=pagamento,
+                prefix=self.formset_prefix,
+                queryset=PAG_DETT.objects.order_by('PDNUMSCA'),
+            )
+        return self._formset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['formset'] = kwargs.get('formset', self.get_formset())
+        return context
+
+    def form_valid(self, form):
+        formset = self.get_formset()
+        if not formset.is_valid():
+            return self.form_invalid(form)
+
+        with transaction.atomic():
+            self.object = form.save()
+            formset.instance = self.object
+            formset.save()
+        return redirect(self.get_success_url())
+
+    def form_invalid(self, form):
+        return self.render_to_response(
+            self.get_context_data(
+                form=form,
+                formset=self.get_formset(),
+            )
+        )
+
+
+@method_decorator(
+    permission_required('documenti.Manager_Ordini', raise_exception=True),
+    name='dispatch',
+)
+class PagamentiCreateView(PagamentiFormsetMixin, generic.CreateView):
+    model = PAGAMENTI
+    form_class = PagamentiForm
+    template_name = 'documenti/pagamenti_form.html'
+    success_url = reverse_lazy('pagamenti-list')
+
+
+@method_decorator(
+    permission_required('documenti.Manager_Ordini', raise_exception=True),
+    name='dispatch',
+)
+class PagamentiUpdateView(PagamentiFormsetMixin, generic.UpdateView):
+    model = PAGAMENTI
+    form_class = PagamentiForm
+    template_name = 'documenti/pagamenti_form.html'
+    success_url = reverse_lazy('pagamenti-list')
+
+
+@login_required
+@permission_required('documenti.Manager_Ordini', raise_exception=True)
+def pagamenti_delete(request, pk):
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    pagamento = get_object_or_404(PAGAMENTI, pk=pk)
+    try:
+        pagamento.delete()
+    except RestrictedError:
+        messages.error(
+            request,
+            'Impossibile eliminare il pagamento: è utilizzato da documenti o altre impostazioni.',
+        )
+    else:
+        messages.success(request, 'Metodo di pagamento eliminato.')
+    return redirect('pagamenti-list')
+
+
 @login_required
 @permission_required('documenti.Manager_Ordini', raise_exception=True)
 def causdocu_delete(request, pk):

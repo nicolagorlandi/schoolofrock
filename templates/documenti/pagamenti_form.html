@@ -1,0 +1,116 @@
+{% extends 'partials/base.html' %}
+{% load bootstrap %}
+{% load i18n %}
+
+{% block main %}
+<div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        {% if object %}
+            {% trans "Modifica pagamento" %}
+        {% else %}
+            {% trans "Nuovo pagamento" %}
+        {% endif %}
+    </h1>
+    <a href="{% url 'pagamenti-list' %}" class="btn btn-secondary">{% trans "Torna all'elenco" %}</a>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+    <div class="row">
+        {% for field in form %}
+        <div class="col-md-6 mb-3">
+            {{ field|bootstrap }}
+            {% for error in field.errors %}
+            <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <h2 class="h4 mt-4">{% trans "Rateizzazione" %}</h2>
+    {% if formset.non_form_errors %}
+    <div class="alert alert-danger">{{ formset.non_form_errors }}</div>
+    {% endif %}
+    {{ formset.management_form }}
+    <div class="table-responsive">
+        <table class="table table-striped table-sm align-middle">
+            <thead>
+                <tr>
+                    <th>{% trans "Numero rata" %}</th>
+                    <th>{% trans "Decorrenza" %}</th>
+                    <th>{% trans "Intervallo (mesi)" %}</th>
+                    <th>{% trans "Percentuale" %}</th>
+                    <th>{% trans "Tipo pagamento" %}</th>
+                    <th>{% trans "Pagata" %}</th>
+                    <th>{% trans "Giorno del mese" %}</th>
+                    <th>{% trans "Elimina" %}</th>
+                </tr>
+            </thead>
+            <tbody id="dettagli-pagamento">
+                {% for riga in formset %}
+                <tr>
+                    {% for hidden in riga.hidden_fields %}{{ hidden }}{% endfor %}
+                    <td>{{ riga.PDNUMSCA }}{{ riga.PDNUMSCA.errors }}</td>
+                    <td>{{ riga.PDGIORNO }}{{ riga.PDGIORNO.errors }}</td>
+                    <td>{{ riga.PDINTERV }}{{ riga.PDINTERV.errors }}</td>
+                    <td>{{ riga.PDPERCEN }}{{ riga.PDPERCEN.errors }}</td>
+                    <td>{{ riga.PDTIPPAG }}{{ riga.PDTIPPAG.errors }}</td>
+                    <td>{{ riga.PDPAGATA }}{{ riga.PDPAGATA.errors }}</td>
+                    <td>{{ riga.PD_FISSO }}{{ riga.PD_FISSO.errors }}</td>
+                    <td>
+                        {% if riga.DELETE %}{{ riga.DELETE }}{% endif %}
+                        {% for error in riga.non_field_errors %}
+                        <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <template id="dettaglio-pagamento-empty-form">
+        <tr>
+            {% for hidden in formset.empty_form.hidden_fields %}{{ hidden }}{% endfor %}
+            <td>{{ formset.empty_form.PDNUMSCA }}</td>
+            <td>{{ formset.empty_form.PDGIORNO }}</td>
+            <td>{{ formset.empty_form.PDINTERV }}</td>
+            <td>{{ formset.empty_form.PDPERCEN }}</td>
+            <td>{{ formset.empty_form.PDTIPPAG }}</td>
+            <td>{{ formset.empty_form.PDPAGATA }}</td>
+            <td>{{ formset.empty_form.PD_FISSO }}</td>
+            <td>{{ formset.empty_form.DELETE }}</td>
+        </tr>
+    </template>
+
+    <button type="button" id="aggiungi-dettaglio-pagamento"
+            class="btn btn-outline-primary mb-3">{% trans "Aggiungi rata" %}</button>
+    <button type="submit" class="btn btn-primary">{% trans "Salva" %}</button>
+    <a href="{% url 'pagamenti-list' %}" class="btn btn-outline-secondary">{% trans "Annulla" %}</a>
+</form>
+
+<script>
+    document.getElementById('aggiungi-dettaglio-pagamento').addEventListener(
+        'click',
+        function () {
+            const totalForms = document.getElementById(
+                'id_dettagli-TOTAL_FORMS'
+            );
+            const rowTemplate = document.getElementById(
+                'dettaglio-pagamento-empty-form'
+            ).innerHTML;
+            const newRow = rowTemplate.split('__prefix__').join(
+                totalForms.value
+            );
+            document.getElementById('dettagli-pagamento').insertAdjacentHTML(
+                'beforeend',
+                newRow
+            );
+            totalForms.value = Number(totalForms.value) + 1;
+        }
+    );
+</script>
+{% endblock %}
