@@ -67,10 +67,17 @@
                             {% endfor %}
                         </td>
                         <td>
-                            <button type="submit" class="btn btn-sm btn-outline-primary"
-                                    name="corso_singolo" value="{{ corso.pk }}">
-                                {% trans "Genera lezioni" %}
-                            </button>
+                            <div class="d-flex gap-1 flex-wrap">
+                                <button type="submit" class="btn btn-sm btn-outline-primary"
+                                        name="corso_singolo" value="{{ corso.pk }}">
+                                    {% trans "Genera lezioni" %}
+                                </button>
+                                <button type="submit" class="btn btn-sm btn-outline-danger"
+                                        name="elimina_corso" value="{{ corso.pk }}"
+                                        onclick="return confirm('{% trans "Eliminare le lezioni non svolte e non collegate a una ricevuta per questo corso nel mese selezionato?" %}');">
+                                    {% trans "Elimina lezioni" %}
+                                </button>
+                            </div>
                         </td>
                     </tr>
                     {% empty %}

@@ -586,6 +586,84 @@ class CalendarioLezioniTests(TestCase):
             1,
         )
 
+    def test_deleting_course_lessons_keeps_attended_and_invoiced_lessons(self):
+        lezione_con_presenza = Lezioni.objects.create(
+            alunno=self.riga_alunno,
+            data=date(2026, 10, 19),
+            data_ricorrenza=date(2026, 10, 19),
+            presenza=True,
+        )
+        documento = Ord_Mast.objects.create(
+            DODATORD=date(2026, 10, 20),
+            DOCODCAU=self.causale,
+            DOCODINT=self.alunno_nominativo,
+            DOCODUTE=self.user,
+            DOTIPDOC='RF',
+            slug='ricevuta-lezione-protetta',
+        )
+        lezione_fatturata = Lezioni.objects.create(
+            alunno=self.riga_alunno,
+            data=date(2026, 10, 26),
+            data_ricorrenza=date(2026, 10, 26),
+            documento_fatturazione=documento,
+        )
+        lezione_mese_successivo = Lezioni.objects.create(
+            alunno=self.riga_alunno,
+            data=date(2026, 11, 2),
+            data_ricorrenza=date(2026, 11, 2),
+        )
+
+        response = self.client.post(
+            reverse('corsi:lezioni'),
+            {
+                'anno': '2026',
+                'mese': '10',
+                'elimina_corso': str(self.corso.pk),
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Lezioni.objects.filter(pk=self.lezione.pk).exists())
+        self.assertTrue(
+            Lezioni.objects.filter(pk=lezione_con_presenza.pk).exists()
+        )
+        self.assertTrue(
+            Lezioni.objects.filter(pk=lezione_fatturata.pk).exists()
+        )
+        self.assertTrue(
+            Lezioni.objects.filter(pk=lezione_mese_successivo.pk).exists()
+        )
+        self.assertContains(response, 'Lezioni eliminate: 1')
+        self.assertContains(response, '2 lezioni sono state mantenute')
+
+    def test_deleting_lessons_rejects_course_outside_selected_month(self):
+        altro_corso = Corso.objects.create(
+            descrizione='Altro corso',
+            insegnante=self.corso.insegnante,
+            prezzo='100.00',
+            costo='50.00',
+            data_inizio=date(2026, 11, 1),
+            data_fine=date(2026, 12, 31),
+        )
+
+        response = self.client.post(
+            reverse('corsi:lezioni'),
+            {
+                'anno': '2026',
+                'mese': '10',
+                'elimina_corso': str(altro_corso.pk),
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Lezioni.objects.filter(pk=self.lezione.pk).exists())
+        self.assertContains(
+            response,
+            'Il corso selezionato non appartiene al periodo indicato.',
+        )
+
     def test_invalid_event_date_or_time_is_rejected(self):
         response = self.client.post(
             reverse(

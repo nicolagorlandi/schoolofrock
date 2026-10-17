@@ -342,6 +342,67 @@ def gestione_lezioni(request):
             Prefetch('alunni', queryset=Alunno.objects.select_related('alunno'))
         )
 
+    if (
+        request.method == 'POST'
+        and periodo_valido
+        and 'elimina_corso' in request.POST
+    ):
+        corso_id = request.POST['elimina_corso']
+        query = urlencode({'anno': anno, 'mese': mese})
+        redirect_url = f'{reverse("corsi:lezioni")}?{query}'
+        if not corso_id.isdecimal():
+            messages.error(request, 'La selezione del corso non è valida.')
+            return redirect(redirect_url)
+
+        corso = corsi.filter(pk=int(corso_id)).first()
+        if corso is None:
+            messages.error(
+                request,
+                'Il corso selezionato non appartiene al periodo indicato.',
+            )
+            return redirect(redirect_url)
+
+        lezioni_periodo = Lezioni.objects.filter(
+            alunno__corso=corso,
+        ).filter(
+            Q(data_ricorrenza__range=(inizio_periodo, fine_periodo))
+            | Q(
+                data_ricorrenza__isnull=True,
+                data__range=(inizio_periodo, fine_periodo),
+            )
+        )
+        with transaction.atomic():
+            lezioni_protette = lezioni_periodo.filter(
+                Q(presenza=True)
+                | Q(documento_fatturazione__isnull=False)
+            ).count()
+            lezioni_eliminabili = lezioni_periodo.filter(
+                presenza=False,
+                documento_fatturazione__isnull=True,
+            )
+            lezioni_eliminate, _ = lezioni_eliminabili.delete()
+
+        if lezioni_eliminate:
+            messages.success(
+                request,
+                f'Lezioni eliminate: {lezioni_eliminate} per il corso '
+                f'{corso}.',
+            )
+        if lezioni_protette:
+            messages.warning(
+                request,
+                f'{lezioni_protette} lezioni sono state mantenute '
+                'perché contrassegnate come presenti o collegate a una '
+                'ricevuta.',
+            )
+        if not lezioni_eliminate and not lezioni_protette:
+            messages.info(
+                request,
+                'Non ci sono lezioni da eliminare per il corso nel mese '
+                'selezionato.',
+            )
+        return redirect(redirect_url)
+
     if request.method == 'POST' and periodo_valido:
         corso_singolo = request.POST.get('corso_singolo')
         selezionati = (
