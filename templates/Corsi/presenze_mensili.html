@@ -36,6 +36,7 @@
                     <th>{% trans "Data" %}</th>
                     <th>{% trans "Ora" %}</th>
                     <th>{% trans "Durata (min)" %}</th>
+                    <th>{% trans "Ore" %}</th>
                     <th>{% trans "Presenza" %}</th>
                 </tr>
             </thead>
@@ -48,6 +49,7 @@
                     <td>{{ riga.lezione.data|date:"SHORT_DATE_FORMAT" }}</td>
                     <td>{{ riga.ora_inizio|time:"H:i" }}</td>
                     <td>{{ riga.durata_minuti }}</td>
+                    <td>{{ riga.ore|floatformat:2 }}</td>
                     <td>
                         {% if riga.lezione.presenza %}
                             <span class="text-success">{% trans "Sì" %}</span>
@@ -57,7 +59,7 @@
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="7" class="text-center">{% trans "Nessuna lezione nel mese selezionato." %}</td></tr>
+                <tr><td colspan="8" class="text-center">{% trans "Nessuna lezione nel mese selezionato." %}</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -71,6 +73,7 @@
                     <th>{% trans "Corso" %}</th>
                     <th>{% trans "Docente" %}</th>
                     <th>{% trans "Minuti lezione" %}</th>
+                    <th>{% trans "Ore" %}</th>
                     <th>{% trans "Costo orario (€)" %}</th>
                     <th>{% trans "Costo Corso (€)" %}</th>
                 </tr>
@@ -81,11 +84,12 @@
                     <td>{{ riga.corso }}</td>
                     <td>{{ riga.corso.insegnante }}</td>
                     <td>{{ riga.minuti }}</td>
+                    <td>{{ riga.ore|floatformat:2 }}</td>
                     <td>{{ riga.corso.costo|floatformat:2 }}</td>
                     <td>{{ riga.costo|floatformat:2 }}</td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="5" class="text-center">{% trans "Nessun dato da riepilogare." %}</td></tr>
+                <tr><td colspan="6" class="text-center">{% trans "Nessun dato da riepilogare." %}</td></tr>
                 {% endfor %}
             </tbody>
             {% if totali %}
@@ -93,6 +97,7 @@
                 <tr class="fw-bold">
                     <td colspan="2">{% trans "Gran totale" %}</td>
                     <td>{{ totali.minuti_costo }}</td>
+                    <td>{{ totali.ore_costo|floatformat:2 }}</td>
                     <td></td>
                     <td>{{ totali.costo|floatformat:2 }}</td>
                 </tr>
@@ -109,7 +114,9 @@
                     <th>{% trans "Alunno" %}</th>
                     <th>{% trans "Corso" %}</th>
                     <th>{% trans "Minuti lezione" %}</th>
+                    <th>{% trans "Ore lezione" %}</th>
                     <th>{% trans "Minuti assenza" %}</th>
+                    <th>{% trans "Ore assenza" %}</th>
                     <th>{% trans "Ricavo Corso (€)" %}</th>
                 </tr>
             </thead>
@@ -119,11 +126,13 @@
                     <td>{{ riga.alunno }}</td>
                     <td>{{ riga.corso }}</td>
                     <td>{{ riga.minuti }}</td>
+                    <td>{{ riga.ore|floatformat:2 }}</td>
                     <td>{{ riga.minuti_assenza }}</td>
+                    <td>{{ riga.ore_assenza|floatformat:2 }}</td>
                     <td>{{ riga.ricavo|floatformat:2 }}</td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="6" class="text-center">{% trans "Nessun dato da riepilogare." %}</td></tr>
+                <tr><td colspan="7" class="text-center">{% trans "Nessun dato da riepilogare." %}</td></tr>
                 {% endfor %}
             </tbody>
             {% if totali %}
@@ -131,7 +140,9 @@
                 <tr class="fw-bold">
                     <td colspan="2">{% trans "Gran totale" %}</td>
                     <td>{{ totali.minuti_alunni }}</td>
+                    <td>{{ totali.ore_alunni|floatformat:2 }}</td>
                     <td>{{ totali.minuti_assenza }}</td>
+                    <td>{{ totali.ore_assenza|floatformat:2 }}</td>
                     <td>{{ totali.ricavo|floatformat:2 }}</td>
                 </tr>
             </tfoot>

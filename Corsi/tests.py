@@ -553,20 +553,29 @@ class CalendarioLezioniTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.context['dettaglio_lezioni']), 2)
+        self.assertEqual(
+            response.context['dettaglio_lezioni'][0]['ore'],
+            Decimal('0.75'),
+        )
         riepilogo_alunno = response.context['riepilogo_alunni'][0]
         self.assertEqual(riepilogo_alunno['minuti'], 90)
+        self.assertEqual(riepilogo_alunno['ore'], Decimal('1.5'))
         self.assertEqual(riepilogo_alunno['minuti_assenza'], 45)
+        self.assertEqual(riepilogo_alunno['ore_assenza'], Decimal('0.75'))
         self.assertEqual(riepilogo_alunno['ricavo'], Decimal('150.00'))
 
         riepilogo_corso = response.context['riepilogo_corsi'][0]
         self.assertEqual(riepilogo_corso['minuti'], 90)
+        self.assertEqual(riepilogo_corso['ore'], Decimal('1.5'))
         self.assertEqual(riepilogo_corso['costo'], Decimal('75.00'))
         self.assertEqual(riepilogo_corso['ricavo'], Decimal('150.00'))
         self.assertEqual(riepilogo_corso['differenza'], Decimal('75.00'))
 
         totali = response.context['totali']
         self.assertEqual(totali['minuti_alunni'], 90)
+        self.assertEqual(totali['ore_alunni'], Decimal('1.5'))
         self.assertEqual(totali['minuti_assenza'], 45)
+        self.assertEqual(totali['ore_assenza'], Decimal('0.75'))
         self.assertEqual(totali['costo'], Decimal('75.00'))
         self.assertEqual(totali['ricavo'], Decimal('150.00'))
         self.assertEqual(totali['differenza'], Decimal('75.00'))

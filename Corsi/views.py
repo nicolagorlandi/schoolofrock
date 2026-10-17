@@ -467,6 +467,7 @@ def presenze_mensili(request):
                     'alunno': nominativo,
                     'ora_inizio': ora_inizio,
                     'durata_minuti': durata,
+                    'ore': Decimal(durata) / Decimal('60'),
                 }
             )
 
@@ -512,6 +513,9 @@ def presenze_mensili(request):
                 riepilogo_corso['minuti'],
                 riepilogo_corso['corso'].costo,
             )
+            riepilogo_corso['ore'] = (
+                Decimal(riepilogo_corso['minuti']) / Decimal('60')
+            )
             riepilogo_corso['differenza'] = (
                 riepilogo_corso['ricavo'] - riepilogo_corso['costo']
             )
@@ -525,8 +529,20 @@ def presenze_mensili(request):
                 riepilogo['corso'].pk or '',
             ),
         )
+        for riepilogo_alunno in riepilogo_alunni:
+            riepilogo_alunno['ore'] = (
+                Decimal(riepilogo_alunno['minuti']) / Decimal('60')
+            )
+            riepilogo_alunno['ore_assenza'] = (
+                Decimal(riepilogo_alunno['minuti_assenza'])
+                / Decimal('60')
+            )
         totali = {
             'minuti_costo': sum(r['minuti'] for r in riepilogo_corsi),
+            'ore_costo': (
+                Decimal(sum(r['minuti'] for r in riepilogo_corsi))
+                / Decimal('60')
+            ),
             'costo': sum(
                 (r['costo'] for r in riepilogo_corsi),
                 Decimal('0.00'),
@@ -540,8 +556,18 @@ def presenze_mensili(request):
                 Decimal('0.00'),
             ),
             'minuti_alunni': sum(r['minuti'] for r in riepilogo_alunni),
+            'ore_alunni': (
+                Decimal(sum(r['minuti'] for r in riepilogo_alunni))
+                / Decimal('60')
+            ),
             'minuti_assenza': sum(
                 r['minuti_assenza'] for r in riepilogo_alunni
+            ),
+            'ore_assenza': (
+                Decimal(
+                    sum(r['minuti_assenza'] for r in riepilogo_alunni)
+                )
+                / Decimal('60')
             ),
         }
 
