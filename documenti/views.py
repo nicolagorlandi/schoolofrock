@@ -37,6 +37,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.shortcuts import get_object_or_404
 
 from PaNet1Project import settings
+from Corsi.permissions import is_insegnante
 
 from .models import *
 from .forms import *
@@ -83,6 +84,13 @@ def anonymous_required(function=None, redirect_url=None):
 # @anonymous_required
 def login(request):
     context = {}
+    if request.user.is_authenticated:
+        return redirect(
+            'corsi:calendario-lezioni'
+            if is_insegnante(request.user)
+            else 'dashboard'
+        )
+
     if request.method == 'GET':
         form = UserLoginForm()
         context['form'] = form
@@ -97,8 +105,11 @@ def login(request):
         user = auth.authenticate(username=username, password=password)
         if user is not None:
             auth.login(request, user)
-            # apro la dashboard
-            return redirect('dashboard')               
+            return redirect(
+                'corsi:calendario-lezioni'
+                if is_insegnante(user)
+                else 'dashboard'
+            )
         else:
             context['form'] = form
             messages.error(request, 'Invalid Credentials')
@@ -429,6 +440,9 @@ def Articolo_delete(request,articolo_id):
 
 @login_required
 def dashboard(request):
+    if is_insegnante(request.user):
+        return redirect('corsi:calendario-lezioni')
+
     context = {}    
     articoliAMagazzino =Articoli.objects.annotate(
         impegnato=Sum(F('ord_dett__DOIMPEGN')*F('ord_dett__DOQTAUM1')),
@@ -441,6 +455,16 @@ def dashboard(request):
 
     context['filter'] = DashboardFilter(request.GET, queryset=articoliAMagazzino)
     return render(request, 'documenti/dashboard.html', context)
+
+
+@login_required
+def home(request):
+    return redirect(
+        'corsi:calendario-lezioni'
+        if is_insegnante(request.user)
+        else 'dashboard'
+    )
+
 
 @login_required
 def logout(request):

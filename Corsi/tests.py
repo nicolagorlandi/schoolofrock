@@ -3,7 +3,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
@@ -346,6 +346,133 @@ class CalendarioLezioniTests(TestCase):
         )
         evento = response.json()[0]
         self.assertEqual(evento['start'], '2026-10-14T18:30:00')
+
+    def test_event_duration_can_be_changed_without_changing_the_schedule(self):
+        response = self.client.post(
+            reverse(
+                'corsi:modifica-orario-lezione',
+                args=[self.lezione.pk],
+            ),
+            {
+                'data': '2026-10-12',
+                'ora_inizio': '17:00',
+                'durata_minuti': '60',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['durata_minuti'], 60)
+        self.lezione.refresh_from_db()
+        self.riga_alunno.refresh_from_db()
+        self.assertEqual(self.lezione.durata_minuti, 60)
+        self.assertEqual(self.riga_alunno.durata_minuti, 45)
+
+        response = self.client.get(
+            reverse('corsi:calendario-eventi'),
+            {'start': '2026-10-01', 'end': '2026-11-01'},
+        )
+        evento = response.json()[0]
+        self.assertEqual(evento['end'], '2026-10-12T18:00:00')
+        self.assertEqual(evento['extendedProps']['durata_minuti'], 60)
+
+        response = self.client.get(
+            reverse('corsi:presenze-mensili'),
+            {'anno': '2026', 'mese': '10'},
+        )
+        self.assertEqual(
+            response.context['dettaglio_lezioni'][0]['durata_minuti'],
+            60,
+        )
+
+    def test_invalid_event_duration_is_rejected(self):
+        response = self.client.post(
+            reverse(
+                'corsi:modifica-orario-lezione',
+                args=[self.lezione.pk],
+            ),
+            {
+                'data': '2026-10-12',
+                'ora_inizio': '17:00',
+                'durata_minuti': '0',
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.lezione.refresh_from_db()
+        self.assertIsNone(self.lezione.durata_minuti)
+
+    def test_teacher_role_only_allows_calendar_actions(self):
+        self.user.groups.add(Group.objects.get(name='Insegnante'))
+
+        response = self.client.get(reverse('home'))
+        self.assertRedirects(
+            response,
+            reverse('corsi:calendario-lezioni'),
+        )
+
+        response = self.client.get(reverse('dashboard'))
+        self.assertRedirects(
+            response,
+            reverse('corsi:calendario-lezioni'),
+        )
+        self.assertRedirects(
+            self.client.get(reverse('login')),
+            reverse('corsi:calendario-lezioni'),
+        )
+
+        calendar_response = self.client.get(
+            reverse('corsi:calendario-lezioni')
+        )
+        self.assertEqual(calendar_response.status_code, 200)
+        self.assertTrue(calendar_response.context['is_insegnante'])
+        visible_menu = calendar_response.context['MENU_TREE']
+        self.assertEqual(
+            [item.label for item in visible_menu],
+            ['Corsi', 'Servizi'],
+        )
+        self.assertEqual(
+            [item.label for item in visible_menu[0].child_list],
+            ['Calendario lezioni'],
+        )
+        self.assertEqual(
+            [item.label for item in visible_menu[1].child_list],
+            ['Logout'],
+        )
+
+        allowed_event_response = self.client.get(
+            reverse('corsi:calendario-eventi'),
+            {'start': '2026-10-01', 'end': '2026-11-01'},
+        )
+        self.assertEqual(allowed_event_response.status_code, 200)
+        allowed_presence_response = self.client.post(
+            reverse('corsi:aggiorna-presenza', args=[self.lezione.pk]),
+            {'presenza': 'true'},
+        )
+        self.assertEqual(allowed_presence_response.status_code, 200)
+        allowed_move_response = self.client.post(
+            reverse(
+                'corsi:modifica-orario-lezione',
+                args=[self.lezione.pk],
+            ),
+            {'data': '2026-10-14', 'ora_inizio': '18:30'},
+        )
+        self.assertEqual(allowed_move_response.status_code, 200)
+
+        for url in (
+            reverse('corsi:elenco'),
+            reverse('corsi:lezioni'),
+            reverse('corsi:presenze-mensili'),
+            reverse('corsi:fatturazione'),
+            reverse('clienti'),
+            reverse('admin:index'),
+        ):
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 403)
+
+        self.assertEqual(
+            self.client.post(reverse('corsi:lezioni')).status_code,
+            403,
+        )
 
     def test_generating_lessons_again_does_not_duplicate_a_moved_lesson(self):
         self.client.post(

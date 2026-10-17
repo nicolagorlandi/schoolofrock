@@ -31,6 +31,7 @@ from .forms import (
     PresenzeMensiliForm,
 )
 from .models import Alunno, Corso, Lezioni
+from .permissions import is_insegnante
 
 
 class NominativiAutocomplete(autocomplete.Select2QuerySetView):
@@ -148,6 +149,7 @@ def calendario_lezioni(request):
             'corsi': corsi,
             'alunni': alunni,
             'eventi_url': reverse('corsi:calendario-eventi'),
+            'is_insegnante': is_insegnante(request.user),
         },
     )
 
@@ -189,9 +191,12 @@ def eventi_calendario(request):
     eventi = []
     for lezione in lezioni.order_by('data', 'alunno__ora_inizio').iterator():
         ora_inizio = lezione.ora_inizio or lezione.alunno.ora_inizio
+        durata_minuti = (
+            lezione.durata_minuti or lezione.alunno.durata_minuti
+        )
         inizio_lezione = datetime.combine(lezione.data, ora_inizio)
         fine_lezione = inizio_lezione + timedelta(
-            minutes=lezione.alunno.durata_minuti
+            minutes=durata_minuti
         )
         eventi.append(
             {
@@ -207,6 +212,7 @@ def eventi_calendario(request):
                     'corso': str(lezione.alunno.corso.descrizione),
                     'alunno': str(lezione.alunno.alunno),
                     'note': lezione.note,
+                    'durata_minuti': durata_minuti,
                 },
             }
         )
@@ -241,15 +247,32 @@ def modifica_orario_lezione(request, pk):
             status=400,
         )
 
+    durata_minuti = None
+    if 'durata_minuti' in request.POST:
+        valore_durata = request.POST['durata_minuti']
+        if not valore_durata.isdecimal() or int(valore_durata) < 1:
+            return JsonResponse(
+                {'error': 'La durata della lezione non è valida.'},
+                status=400,
+            )
+        durata_minuti = int(valore_durata)
+
     lezione = get_object_or_404(Lezioni, pk=pk)
     lezione.data = data_lezione
     lezione.ora_inizio = ora_inizio
-    lezione.save(update_fields=['data', 'ora_inizio'])
+    update_fields = ['data', 'ora_inizio']
+    if durata_minuti is not None:
+        lezione.durata_minuti = durata_minuti
+        update_fields.append('durata_minuti')
+    lezione.save(update_fields=update_fields)
     return JsonResponse(
         {
             'id': lezione.pk,
             'data': lezione.data.isoformat(),
             'ora_inizio': lezione.ora_inizio.strftime('%H:%M'),
+            'durata_minuti': (
+                lezione.durata_minuti or lezione.alunno.durata_minuti
+            ),
         }
     )
 
@@ -434,7 +457,7 @@ def presenze_mensili(request):
             riga_alunno = lezione.alunno
             corso = riga_alunno.corso
             nominativo = riga_alunno.alunno
-            durata = riga_alunno.durata_minuti
+            durata = lezione.durata_minuti or riga_alunno.durata_minuti
             ora_inizio = lezione.ora_inizio or riga_alunno.ora_inizio
             dettaglio_lezioni.append(
                 {
@@ -608,7 +631,9 @@ def fatturazione_mensile(request):
                 corso.pk,
                 {'corso': corso, 'minuti': 0},
             )
-            corso_riepilogo['minuti'] += lezione.alunno.durata_minuti
+            corso_riepilogo['minuti'] += (
+                lezione.durata_minuti or lezione.alunno.durata_minuti
+            )
 
         documenti_ids = {
             documento_id

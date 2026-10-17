@@ -19,8 +19,10 @@ from django.conf import settings
 from django.urls import include, path
 from django.conf.urls.static import static
 from documenti.exports import esporta_tabelle_excel
+from documenti import views as documenti_views
 
 urlpatterns = [
+    path('', documenti_views.home, name='home'),
     path('admin/', admin.site.urls),
     path('export/excel/', esporta_tabelle_excel, name='export-excel'),
     path('doc/',include('documenti.urls')),

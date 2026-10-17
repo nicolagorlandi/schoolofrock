@@ -72,11 +72,14 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'Corsi.permissions.TeacherAccessMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware', 
     #"debug_toolbar.middleware.DebugToolbarMiddleware",   
     'documenti.ExceptionMiddleware.ExceptionMiddleware'
 ]
+
+LOGIN_URL = 'login'
 
 ROOT_URLCONF = 'PaNet1Project.urls'
 

@@ -72,6 +72,11 @@ class Lezioni(models.Model):
     data = models.DateField()
     data_ricorrenza = models.DateField(null=True, blank=True)
     ora_inizio = models.TimeField(null=True, blank=True)
+    durata_minuti = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1)],
+    )
     presenza = models.BooleanField(
         default=False,
         choices=[(True, 'Sì'), (False, 'No')],

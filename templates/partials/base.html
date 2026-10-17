@@ -73,15 +73,15 @@
 
             </div>
 
-            <div class="d-flex flex-row-reverse">
-        
-              <div class="p-2">
-                <a class="btn btn-info fa-solid fa-cart-shopping" href="{% url 'view_cart' %}">
-                  <span id="cart_quantity" class="badge badge-danger">{{ itemInCart.count }}</span>
-                </a>
+            {% if not is_insegnante %}
+              <div class="d-flex flex-row-reverse">
+                <div class="p-2">
+                  <a class="btn btn-info fa-solid fa-cart-shopping" href="{% url 'view_cart' %}">
+                    <span id="cart_quantity" class="badge badge-danger">{{ itemInCart.count }}</span>
+                  </a>
+                </div>
               </div>
-
-            </div>
+            {% endif %}
 
           </div>
       </nav>     
@@ -130,11 +130,13 @@
       {% block custom_js %}
       {% endblock %}   
 
-      <form id="table-export-csrf" class="d-none">{% csrf_token %}</form>
-      <script
-        src="{% static 'documenti/js/tableExport.js' %}"
-        data-export-url="{% url 'export-excel' %}">
-      </script>
+      {% if not is_insegnante %}
+        <form id="table-export-csrf" class="d-none">{% csrf_token %}</form>
+        <script
+          src="{% static 'documenti/js/tableExport.js' %}"
+          data-export-url="{% url 'export-excel' %}">
+        </script>
+      {% endif %}
 
   </body>
 </html>
