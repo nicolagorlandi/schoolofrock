@@ -570,6 +570,7 @@ def presenze_mensili(request):
                 {
                     'corso': corso,
                     'alunno': nominativo,
+                    'durata_minuti_configurata_alunno': riga_alunno.durata_minuti,
                     'minuti': 0,
                     'minuti_assenza': 0,
                     'ricavo': Decimal('0.00'),
@@ -583,7 +584,7 @@ def presenze_mensili(request):
             corso = riepilogo_alunno['corso']
             riepilogo_alunno['ricavo'] = (
                 corso.prezzo
-                * Decimal(riepilogo_alunno['minuti'])
+                * Decimal(riepilogo_alunno['durata_minuti_configurata_alunno'])
                 / Decimal(corso.durata_minuti)
             ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             corsi_per_id[corso.pk]['ricavo'] += riepilogo_alunno['ricavo']

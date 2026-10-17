@@ -723,14 +723,14 @@ class CalendarioLezioniTests(TestCase):
         self.assertEqual(riepilogo_alunno['ore'], Decimal('1.5'))
         self.assertEqual(riepilogo_alunno['minuti_assenza'], 45)
         self.assertEqual(riepilogo_alunno['ore_assenza'], Decimal('0.75'))
-        self.assertEqual(riepilogo_alunno['ricavo'], Decimal('150.00'))
+        self.assertEqual(riepilogo_alunno['ricavo'], Decimal('75.00'))
 
         riepilogo_corso = response.context['riepilogo_corsi'][0]
         self.assertEqual(riepilogo_corso['minuti'], 90)
         self.assertEqual(riepilogo_corso['ore'], Decimal('1.5'))
         self.assertEqual(riepilogo_corso['costo'], Decimal('75.00'))
-        self.assertEqual(riepilogo_corso['ricavo'], Decimal('150.00'))
-        self.assertEqual(riepilogo_corso['differenza'], Decimal('75.00'))
+        self.assertEqual(riepilogo_corso['ricavo'], Decimal('75.00'))
+        self.assertEqual(riepilogo_corso['differenza'], Decimal('0.00'))
 
         totali = response.context['totali']
         self.assertEqual(totali['minuti_alunni'], 90)
@@ -738,12 +738,14 @@ class CalendarioLezioniTests(TestCase):
         self.assertEqual(totali['minuti_assenza'], 45)
         self.assertEqual(totali['ore_assenza'], Decimal('0.75'))
         self.assertEqual(totali['costo'], Decimal('75.00'))
-        self.assertEqual(totali['ricavo'], Decimal('150.00'))
-        self.assertEqual(totali['differenza'], Decimal('75.00'))
+        self.assertEqual(totali['ricavo'], Decimal('75.00'))
+        self.assertEqual(totali['differenza'], Decimal('0.00'))
 
-    def test_monthly_revenue_is_prorated_by_course_duration(self):
-        self.corso.durata_minuti = 90
+    def test_monthly_revenue_uses_student_duration_relative_to_course_default(self):
+        self.corso.durata_minuti = 120
         self.corso.save()
+        self.lezione.durata_minuti = 90
+        self.lezione.save(update_fields=['durata_minuti'])
 
         response = self.client.get(
             reverse('corsi:presenze-mensili'),
@@ -752,13 +754,35 @@ class CalendarioLezioniTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
+            response.context['riepilogo_alunni'][0]['minuti'],
+            90,
+        )
+        self.assertEqual(
             response.context['riepilogo_alunni'][0]['ricavo'],
-            Decimal('50.00'),
+            Decimal('37.50'),
         )
         self.assertEqual(
             response.context['riepilogo_corsi'][0]['ricavo'],
-            Decimal('50.00'),
+            Decimal('37.50'),
         )
+
+    def test_monthly_revenue_does_not_scale_with_number_of_lessons(self):
+        Lezioni.objects.create(
+            alunno=self.riga_alunno,
+            data=date(2026, 10, 19),
+            data_ricorrenza=date(2026, 10, 19),
+            durata_minuti=90,
+        )
+
+        response = self.client.get(
+            reverse('corsi:presenze-mensili'),
+            {'anno': '2026', 'mese': '10'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        riepilogo_alunno = response.context['riepilogo_alunni'][0]
+        self.assertEqual(riepilogo_alunno['minuti'], 135)
+        self.assertEqual(riepilogo_alunno['ricavo'], Decimal('75.00'))
 
     def test_monthly_course_cost_counts_shared_time_slot_once(self):
         altro_alunno_nominativo = Nominativi.objects.create(
