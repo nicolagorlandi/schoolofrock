@@ -145,8 +145,10 @@ class CorsoForm(forms.ModelForm):
         model = Corso
         fields = [
             'descrizione',
+            'note',
             'durata_minuti',
             'di_gruppo',
+            'calcoloCosto',
             'insegnante',
             'articolo',
             'prezzo',
@@ -156,8 +158,10 @@ class CorsoForm(forms.ModelForm):
         ]
         labels = {
             'descrizione': _('Descrizione'),
-            'durata_minuti': _('Durata corso (minuti)'),
-            'di_gruppo': _('Corso di gruppo'),
+            'note': _('Note'),
+            'durata_minuti': _('Durata(minuti)'),
+            'di_gruppo': _('Di gruppo'),
+            'calcoloCosto': _('Forfettario'),
             'insegnante': _('Insegnante'),
             'articolo': _('Articolo per fatturazione'),
             'prezzo': _('Prezzo'),
@@ -167,7 +171,14 @@ class CorsoForm(forms.ModelForm):
         }
         widgets = {
             'descrizione': forms.TextInput(attrs={'maxlength': 80}),
+            'note': forms.Textarea(attrs={'rows': 4}),
             'durata_minuti': forms.NumberInput(attrs={'min': '1', 'step': '1'}),
+            'di_gruppo': forms.CheckboxInput(
+                attrs={'class': 'form-check-input'}
+            ),
+            'calcoloCosto': forms.CheckboxInput(
+                attrs={'class': 'form-check-input'}
+            ),
             'insegnante': autocomplete.ModelSelect2(
                 url='corsi:insegnante-autocomplete',
                 attrs={'data-placeholder': _('Cerca un fornitore'), 'data-minimum-input-length': 2},

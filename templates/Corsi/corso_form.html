@@ -23,16 +23,29 @@
     {% endif %}
 
     <div class="row">
-        <div class="col-md-12 mb-3">{{ form.descrizione|bootstrap }}</div>
-        <div class="col-md-3 mb-3">{{ form.durata_minuti|bootstrap }}</div>
-        <div class="col-md-3 mb-3">{{ form.di_gruppo|bootstrap }}</div>
-        <div class="col-md-6 mb-3">{{ form.insegnante|bootstrap }}</div>
-        <div class="col-md-6 mb-3">{{ form.articolo|bootstrap }}</div>
-        <div class="col-md-3 mb-3">{{ form.prezzo|bootstrap }}</div>
-        <div class="col-md-3 mb-3">{{ form.costo|bootstrap }}</div>
-        <div class="col-md-3 mb-3">{{ form.data_inizio|bootstrap }}</div>
-        <div class="col-md-3 mb-3">{{ form.data_fine|bootstrap }}</div>
+        <div class="col-md-4 mb-3">{{ form.descrizione|bootstrap }}</div>
+        <div class="col-md-4 mb-3">{{ form.insegnante|bootstrap }}</div>
+        <div class="col-md-4 mb-3">{{ form.articolo|bootstrap }}</div>
+
+        <div class="col-md-2 mb-3">{{ form.data_inizio|bootstrap }}</div>
+        <div class="col-md-2 mb-3">{{ form.data_fine|bootstrap }}</div>
+        <div class="col-md-1 mb-3">{{ form.durata_minuti|bootstrap }}</div>
+        <div class="col-md-1 mb-3">{{ form.prezzo|bootstrap }}</div>
+        <div class="col-md-1 mb-3">
+            <label class="form-label" for="{{ form.di_gruppo.id_for_label }}">{{ form.di_gruppo.label }}</label>
+            <div class="form-check">{{ form.di_gruppo }}</div>
+            {% for error in form.di_gruppo.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="col-md-1 mb-3">{{ form.costo|bootstrap }}</div>
+        <div class="col-md-1 mb-3">
+            <label class="form-label" for="{{ form.calcoloCosto.id_for_label }}">{{ form.calcoloCosto.label }}</label>
+            <div class="form-check">{{ form.calcoloCosto }}</div>
+            {% for error in form.calcoloCosto.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+        </div>
+
+
     </div>
+    <div class="mb-3">{{ form.note|bootstrap }}</div>
 
     <h2 class="h4 mt-4">{% trans "Alunni e orari" %}</h2>
     {% if formset.non_form_errors %}

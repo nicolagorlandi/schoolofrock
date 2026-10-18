@@ -71,7 +71,8 @@
                     <th>{% trans "Docente" %}</th>
                     <th>{% trans "Minuti lezione" %}</th>
                     <th>{% trans "Ore" %}</th>
-                    <th>{% trans "Costo orario (€)" %}</th>
+                    <th>{% trans "Modalità costo" %}</th>
+                    <th>{% trans "Costo configurato (€)" %}</th>
                     <th>{% trans "Costo Corso (€)" %}</th>
                 </tr>
             </thead>
@@ -82,11 +83,12 @@
                     <td>{{ riga.corso.insegnante }}</td>
                     <td>{{ riga.minuti }}</td>
                     <td>{{ riga.ore|floatformat:2 }}</td>
+                    <td>{% if riga.corso.calcoloCosto %}{% trans "Forfettario" %}{% else %}{% trans "Orario" %}{% endif %}</td>
                     <td>{{ riga.corso.costo|floatformat:2 }}</td>
                     <td>{{ riga.costo|floatformat:2 }}</td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="6" class="text-center">{% trans "Nessun dato da riepilogare." %}</td></tr>
+                <tr><td colspan="7" class="text-center">{% trans "Nessun dato da riepilogare." %}</td></tr>
                 {% endfor %}
             </tbody>
             {% if totali %}
@@ -95,6 +97,7 @@
                     <td colspan="2">{% trans "Gran totale" %}</td>
                     <td>{{ totali.minuti_costo }}</td>
                     <td>{{ totali.ore_costo|floatformat:2 }}</td>
+                    <td></td>
                     <td></td>
                     <td>{{ totali.costo|floatformat:2 }}</td>
                 </tr>

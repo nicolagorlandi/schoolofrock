@@ -174,10 +174,12 @@ class CalendarioLezioniTests(TestCase):
             reverse('corsi:modifica', args=[self.corso.pk]),
             {
                 'descrizione': 'Chitarra acustica',
+                'note': 'Lezione di prova\nPortare il libro',
                 'insegnante': self.corso.insegnante_id,
                 'articolo': self.articolo.ARCODICE,
                 'durata_minuti': '60',
                 'di_gruppo': 'on',
+                'calcoloCosto': 'on',
                 'prezzo': '100.00',
                 'costo': '50.00',
                 'data_inizio': '2026-10-01',
@@ -197,8 +199,10 @@ class CalendarioLezioniTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.corso.refresh_from_db()
         self.assertEqual(self.corso.descrizione, 'Chitarra acustica')
+        self.assertEqual(self.corso.note, 'Lezione di prova\nPortare il libro')
         self.assertEqual(self.corso.articolo, self.articolo)
         self.assertTrue(self.corso.di_gruppo)
+        self.assertTrue(self.corso.calcoloCosto)
 
     def test_invalid_course_form_shows_a_toast(self):
         response = self.client.post(
@@ -250,6 +254,8 @@ class CalendarioLezioniTests(TestCase):
             response.context['form']['descrizione'].value(),
             'Chitarra',
         )
+        self.assertContains(response, 'name="note"')
+        self.assertContains(response, 'rows="4"')
 
     def test_new_student_duration_defaults_to_course_duration(self):
         self.corso.durata_minuti = 75
@@ -274,15 +280,133 @@ class CalendarioLezioniTests(TestCase):
         self.assertContains(response, 'value="2026-10-01"')
         self.assertContains(response, 'value="2026-12-31"')
 
+    def test_course_checkboxes_use_separate_labels_above_the_controls(self):
+        response = self.client.get(
+            reverse('corsi:modifica', args=[self.corso.pk])
+        )
+
+        self.assertContains(
+            response,
+            '<label class="form-label" for="id_di_gruppo">',
+        )
+        self.assertContains(
+            response,
+            '<label class="form-label" for="id_calcoloCosto">',
+        )
+        self.assertContains(response, 'form-check-input')
+
     def test_course_list_displays_saved_description_and_teacher_surname(self):
         response = self.client.get(reverse('corsi:elenco'))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Chitarra Clapton')
+        self.assertContains(response, 'Duplica')
         self.assertContains(response, 'Durata (minuti)')
         self.assertContains(response, 'Di gruppo')
+        self.assertContains(response, 'Calcolo costo')
+        self.assertContains(response, 'Orario')
         self.assertContains(response, '<td>60</td>', html=True)
         self.assertContains(response, '<td>No</td>', html=True)
+
+    def test_duplicate_course_copies_course_and_students_only(self):
+        self.corso.note = 'Note da copiare'
+        self.corso.durata_minuti = 90
+        self.corso.di_gruppo = True
+        self.corso.calcoloCosto = True
+        self.corso.save()
+        self.corso.refresh_from_db()
+        secondo_alunno = Nominativi.objects.create(
+            NOCODICE='CAL-STUDENT-2',
+            NORAGSOC='Secondo alunno',
+            NOCODNOM=settings.CCATCLI,
+        )
+        seconda_riga_alunno = Alunno.objects.create(
+            corso=self.corso,
+            alunno=secondo_alunno,
+            giorno_settimana='mercoledi',
+            ora_inizio='18:15',
+            durata_minuti=30,
+        )
+        documento = Ord_Mast.objects.create(
+            DODATORD=date(2026, 10, 10),
+            DOCODCAU=self.causale,
+            DOCODINT=self.alunno_nominativo,
+            DOCODUTE=self.user,
+            DOTIPDOC='RF',
+            slug='ricevuta-corso-originale',
+        )
+        self.lezione.documento_fatturazione = documento
+        self.lezione.save(update_fields=['documento_fatturazione'])
+
+        response = self.client.post(
+            reverse('corsi:duplica', args=[self.corso.pk])
+        )
+
+        corso_duplicato = Corso.objects.exclude(pk=self.corso.pk).get()
+        self.assertRedirects(
+            response,
+            reverse('corsi:modifica', args=[corso_duplicato.pk]),
+        )
+        for field in (
+            'descrizione',
+            'note',
+            'durata_minuti',
+            'di_gruppo',
+            'calcoloCosto',
+            'insegnante_id',
+            'articolo_id',
+            'prezzo',
+            'costo',
+            'data_inizio',
+            'data_fine',
+        ):
+            self.assertEqual(
+                getattr(corso_duplicato, field),
+                getattr(self.corso, field),
+            )
+
+        alunni_duplicati = list(
+            corso_duplicato.alunni.order_by('giorno_settimana', 'ora_inizio')
+        )
+        self.assertEqual(len(alunni_duplicati), 2)
+        self.assertEqual(
+            {
+                (
+                    riga.alunno_id,
+                    riga.giorno_settimana,
+                    riga.ora_inizio,
+                    riga.durata_minuti,
+                )
+                for riga in alunni_duplicati
+            },
+            {
+                (
+                    self.riga_alunno.alunno_id,
+                    self.riga_alunno.giorno_settimana,
+                    time(17, 0),
+                    self.riga_alunno.durata_minuti,
+                ),
+                (
+                    seconda_riga_alunno.alunno_id,
+                    seconda_riga_alunno.giorno_settimana,
+                    time(18, 15),
+                    seconda_riga_alunno.durata_minuti,
+                ),
+            },
+        )
+        self.assertEqual(self.corso.alunni.count(), 2)
+        self.assertEqual(
+            self.lezione.documento_fatturazione_id,
+            documento.pk,
+        )
+        self.assertFalse(Lezioni.objects.filter(
+            alunno__corso=corso_duplicato
+        ).exists())
+        self.assertFalse(
+            Ord_Mast.objects.filter(
+                lezioni_fatturate__alunno__corso=corso_duplicato
+            ).exists()
+        )
 
     def test_course_edit_orders_students_by_weekday_and_start_time(self):
         secondo_alunno = Nominativi.objects.create(
@@ -346,6 +470,7 @@ class CalendarioLezioniTests(TestCase):
             reverse('corsi:nuovo'),
             {
                 'descrizione': 'Pianoforte',
+                'note': 'Lezioni individuali',
                 'durata_minuti': '75',
                 'insegnante': self.corso.insegnante_id,
                 'prezzo': '120.00',
@@ -366,8 +491,10 @@ class CalendarioLezioniTests(TestCase):
         self.assertEqual(response.status_code, 302)
         corso_creato = Corso.objects.get(descrizione='Pianoforte')
         self.assertEqual(corso_creato.insegnante_id, self.corso.insegnante_id)
+        self.assertEqual(corso_creato.note, 'Lezioni individuali')
         self.assertEqual(corso_creato.durata_minuti, 75)
         self.assertFalse(corso_creato.di_gruppo)
+        self.assertFalse(corso_creato.calcoloCosto)
         self.assertEqual(corso_creato.alunni.get().durata_minuti, 75)
 
     def test_calendar_page_renders(self):
@@ -837,6 +964,27 @@ class CalendarioLezioniTests(TestCase):
         riepilogo_corso = response.context['riepilogo_corsi'][0]
         self.assertEqual(riepilogo_corso['minuti'], 75)
         self.assertEqual(riepilogo_corso['costo'], Decimal('62.50'))
+
+    def test_monthly_forfait_course_cost_does_not_depend_on_lesson_minutes(self):
+        self.corso.calcoloCosto = True
+        self.corso.save(update_fields=['calcoloCosto'])
+        Lezioni.objects.create(
+            alunno=self.riga_alunno,
+            data=date(2026, 10, 19),
+            data_ricorrenza=date(2026, 10, 19),
+            durata_minuti=90,
+        )
+
+        response = self.client.get(
+            reverse('corsi:presenze-mensili'),
+            {'anno': '2026', 'mese': '10'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        riepilogo_corso = response.context['riepilogo_corsi'][0]
+        self.assertEqual(riepilogo_corso['minuti'], 135)
+        self.assertEqual(riepilogo_corso['costo'], Decimal('50.00'))
+        self.assertEqual(response.context['totali']['costo'], Decimal('50.00'))
 
     def test_billing_counts_each_course_price_once_per_student(self):
         Lezioni.objects.create(

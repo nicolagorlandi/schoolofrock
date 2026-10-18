@@ -141,6 +141,34 @@ class CorsoUpdateView(CorsoFormsetMixin, UpdateView):
     pass
 
 
+@login_required
+@require_POST
+def duplica_corso(request, pk):
+    corso_origine = get_object_or_404(Corso, pk=pk)
+    campi_corso = {
+        field.attname: getattr(corso_origine, field.attname)
+        for field in Corso._meta.concrete_fields
+        if not field.primary_key
+    }
+    righe_alunni = list(corso_origine.alunni.all())
+
+    with transaction.atomic():
+        corso_duplicato = Corso.objects.create(**campi_corso)
+        Alunno.objects.bulk_create([
+            Alunno(
+                corso=corso_duplicato,
+                **{
+                    field.attname: getattr(riga, field.attname)
+                    for field in Alunno._meta.concrete_fields
+                    if not field.primary_key and field.name != 'corso'
+                },
+            )
+            for riga in righe_alunni
+        ])
+
+    return redirect('corsi:modifica', pk=corso_duplicato.pk)
+
+
 @method_decorator(login_required, name='dispatch')
 class CorsoDeleteView(DeleteView):
     model = Corso
@@ -597,10 +625,14 @@ def presenze_mensili(request):
             corsi_per_id[corso.pk]['ricavo'] += riepilogo_alunno['ricavo']
 
         for riepilogo_corso in corsi_per_id.values():
-            riepilogo_corso['costo'] = _importo_orario(
-                riepilogo_corso['minuti'],
-                riepilogo_corso['corso'].costo,
-            )
+            corso = riepilogo_corso['corso']
+            if corso.calcoloCosto:
+                riepilogo_corso['costo'] = corso.costo
+            else:
+                riepilogo_corso['costo'] = _importo_orario(
+                    riepilogo_corso['minuti'],
+                    corso.costo,
+                )
             riepilogo_corso['ore'] = (
                 Decimal(riepilogo_corso['minuti']) / Decimal('60')
             )

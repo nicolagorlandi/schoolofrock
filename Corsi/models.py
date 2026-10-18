@@ -5,12 +5,17 @@ from django.utils.translation import gettext_lazy as _
 
 class Corso(models.Model):
     descrizione = models.CharField(max_length=80, blank=True)
+    note = models.TextField(blank=True, verbose_name=_('Note'))
     durata_minuti = models.PositiveIntegerField(
         default=60,
         validators=[MinValueValidator(1)],
         verbose_name=_('Durata (minuti)'),
     )
     di_gruppo = models.BooleanField(default=False, verbose_name=_('Di gruppo'))
+    calcoloCosto = models.BooleanField(
+        default=False,
+        verbose_name=_('Costo forfettario'),
+    )
     insegnante = models.ForeignKey(
         'documenti.Nominativi',
         on_delete=models.PROTECT,

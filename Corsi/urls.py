@@ -48,6 +48,7 @@ urlpatterns = [
         name='modifica-orario-lezione',
     ),
     path('nuovo/', views.CorsoCreateView.as_view(), name='nuovo'),
+    path('<int:pk>/duplica/', views.duplica_corso, name='duplica'),
     path('<int:pk>/modifica/', views.CorsoUpdateView.as_view(), name='modifica'),
     path('<int:pk>/elimina/', views.CorsoDeleteView.as_view(), name='elimina'),
     path(
