@@ -535,21 +535,23 @@ def Articolo_delete(request,articolo_id):
 
 @login_required
 def dashboard(request):
-    if is_insegnante(request.user):
-        return redirect('corsi:calendario-lezioni')
+    # qui gestiremo i widgets per ora andiamo sempre su calendario lezioni (arciagogo)
+    return redirect('corsi:calendario-lezioni')
+    # if is_insegnante(request.user):
+    #     return redirect('corsi:calendario-lezioni')
 
-    context = {}    
-    articoliAMagazzino =Articoli.objects.annotate(
-        impegnato=Sum(F('ord_dett__DOIMPEGN')*F('ord_dett__DOQTAUM1')),
-        giacenza=Sum(F('ord_dett__DOCARSCA')*F('ord_dett__DOQTAUM1')),
-        carico=Sum(Case(When(ord_dett__DOCARSCA=1, then=F('ord_dett__DOQTAUM1')), default=0,output_field=FloatField())),        
-        scarico=Sum(Case(When(ord_dett__DOCARSCA=-1, then=F('ord_dett__DOQTAUM1')), default=0,output_field=FloatField())),
-        produrre=Sum(F('ord_dett__DOCARSCA')*F('ord_dett__DOQTAUM1'))-Sum(F('ord_dett__DOIMPEGN')*F('ord_dett__DOQTAUM1')),        
-        ).filter(~Q(impegnato=0) | ~Q(giacenza=0)| ~Q(scarico=0)| ~Q(carico=0))   
+    # context = {}    
+    # articoliAMagazzino =Articoli.objects.annotate(
+    #     impegnato=Sum(F('ord_dett__DOIMPEGN')*F('ord_dett__DOQTAUM1')),
+    #     giacenza=Sum(F('ord_dett__DOCARSCA')*F('ord_dett__DOQTAUM1')),
+    #     carico=Sum(Case(When(ord_dett__DOCARSCA=1, then=F('ord_dett__DOQTAUM1')), default=0,output_field=FloatField())),        
+    #     scarico=Sum(Case(When(ord_dett__DOCARSCA=-1, then=F('ord_dett__DOQTAUM1')), default=0,output_field=FloatField())),
+    #     produrre=Sum(F('ord_dett__DOCARSCA')*F('ord_dett__DOQTAUM1'))-Sum(F('ord_dett__DOIMPEGN')*F('ord_dett__DOQTAUM1')),        
+    #     ).filter(~Q(impegnato=0) | ~Q(giacenza=0)| ~Q(scarico=0)| ~Q(carico=0))   
 
 
-    context['filter'] = DashboardFilter(request.GET, queryset=articoliAMagazzino)
-    return render(request, 'documenti/dashboard.html', context)
+    # context['filter'] = DashboardFilter(request.GET, queryset=articoliAMagazzino)
+    # return render(request, 'documenti/dashboard.html', context)
 
 
 @login_required

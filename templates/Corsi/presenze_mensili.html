@@ -41,9 +41,9 @@
                 {% for riga in riepilogo_corsi %}
                 <tr>
                     <td>{{ riga.corso }}</td>
-                    <td>{{ riga.costo|floatformat:2 }}</td>
-                    <td>{{ riga.ricavo|floatformat:2 }}</td>
-                    <td>{{ riga.differenza|floatformat:2 }}</td>
+                    <td class="{% if riga.costo < 0 %}text-danger{% endif %}">{{ riga.costo|floatformat:"2g" }}</td>
+                    <td class="{% if riga.ricavo < 0 %}text-danger{% endif %}">{{ riga.ricavo|floatformat:"2g" }}</td>
+                    <td class="{% if riga.differenza < 0 %}text-danger{% endif %}">{{ riga.differenza|floatformat:"2g" }}</td>
                 </tr>
                 {% empty %}
                 <tr><td colspan="4" class="text-center">{% trans "Nessun dato da riepilogare." %}</td></tr>
@@ -53,9 +53,9 @@
             <tfoot>
                 <tr class="fw-bold">
                     <td>{% trans "Gran totale" %}</td>
-                    <td>{{ totali.costo|floatformat:2 }}</td>
-                    <td>{{ totali.ricavo|floatformat:2 }}</td>
-                    <td>{{ totali.differenza|floatformat:2 }}</td>
+                    <td class="{% if totali.costo < 0 %}text-danger{% endif %}">{{ totali.costo|floatformat:"2g" }}</td>
+                    <td class="{% if totali.ricavo < 0 %}text-danger{% endif %}">{{ totali.ricavo|floatformat:"2g" }}</td>
+                    <td class="{% if totali.differenza < 0 %}text-danger{% endif %}">{{ totali.differenza|floatformat:"2g" }}</td>
                 </tr>
             </tfoot>
             {% endif %}
@@ -81,11 +81,11 @@
                 <tr>
                     <td>{{ riga.corso }}</td>
                     <td>{{ riga.corso.insegnante }}</td>
-                    <td>{{ riga.minuti }}</td>
-                    <td>{{ riga.ore|floatformat:2 }}</td>
+                    <td class="{% if riga.minuti < 0 %}text-danger{% endif %}">{{ riga.minuti|floatformat:"0g" }}</td>
+                    <td class="{% if riga.ore < 0 %}text-danger{% endif %}">{{ riga.ore|floatformat:"2g" }}</td>
                     <td>{% if riga.corso.calcoloCosto %}{% trans "Forfettario" %}{% else %}{% trans "Orario" %}{% endif %}</td>
-                    <td>{{ riga.corso.costo|floatformat:2 }}</td>
-                    <td>{{ riga.costo|floatformat:2 }}</td>
+                    <td class="{% if riga.corso.costo < 0 %}text-danger{% endif %}">{{ riga.corso.costo|floatformat:"2g" }}</td>
+                    <td class="{% if riga.costo < 0 %}text-danger{% endif %}">{{ riga.costo|floatformat:"2g" }}</td>
                 </tr>
                 {% empty %}
                 <tr><td colspan="7" class="text-center">{% trans "Nessun dato da riepilogare." %}</td></tr>
@@ -95,11 +95,11 @@
             <tfoot>
                 <tr class="fw-bold">
                     <td colspan="2">{% trans "Gran totale" %}</td>
-                    <td>{{ totali.minuti_costo }}</td>
-                    <td>{{ totali.ore_costo|floatformat:2 }}</td>
+                    <td class="{% if totali.minuti_costo < 0 %}text-danger{% endif %}">{{ totali.minuti_costo|floatformat:"0g" }}</td>
+                    <td class="{% if totali.ore_costo < 0 %}text-danger{% endif %}">{{ totali.ore_costo|floatformat:"2g" }}</td>
                     <td></td>
                     <td></td>
-                    <td>{{ totali.costo|floatformat:2 }}</td>
+                    <td class="{% if totali.costo < 0 %}text-danger{% endif %}">{{ totali.costo|floatformat:"2g" }}</td>
                 </tr>
             </tfoot>
             {% endif %}
@@ -125,11 +125,11 @@
                 <tr>
                     <td>{{ riga.alunno }}</td>
                     <td>{{ riga.corso }}</td>
-                    <td>{{ riga.minuti }}</td>
-                    <td>{{ riga.ore|floatformat:2 }}</td>
-                    <td>{{ riga.minuti_assenza }}</td>
-                    <td>{{ riga.ore_assenza|floatformat:2 }}</td>
-                    <td>{{ riga.ricavo|floatformat:2 }}</td>
+                    <td class="{% if riga.minuti < 0 %}text-danger{% endif %}">{{ riga.minuti|floatformat:"0g" }}</td>
+                    <td class="{% if riga.ore < 0 %}text-danger{% endif %}">{{ riga.ore|floatformat:"2g" }}</td>
+                    <td class="{% if riga.minuti_assenza < 0 %}text-danger{% endif %}">{{ riga.minuti_assenza|floatformat:"0g" }}</td>
+                    <td class="{% if riga.ore_assenza < 0 %}text-danger{% endif %}">{{ riga.ore_assenza|floatformat:"2g" }}</td>
+                    <td class="{% if riga.ricavo < 0 %}text-danger{% endif %}">{{ riga.ricavo|floatformat:"2g" }}</td>
                 </tr>
                 {% empty %}
                 <tr><td colspan="7" class="text-center">{% trans "Nessun dato da riepilogare." %}</td></tr>
@@ -139,11 +139,11 @@
             <tfoot>
                 <tr class="fw-bold">
                     <td colspan="2">{% trans "Gran totale" %}</td>
-                    <td>{{ totali.minuti_alunni }}</td>
-                    <td>{{ totali.ore_alunni|floatformat:2 }}</td>
-                    <td>{{ totali.minuti_assenza }}</td>
-                    <td>{{ totali.ore_assenza|floatformat:2 }}</td>
-                    <td>{{ totali.ricavo|floatformat:2 }}</td>
+                    <td class="{% if totali.minuti_alunni < 0 %}text-danger{% endif %}">{{ totali.minuti_alunni|floatformat:"0g" }}</td>
+                    <td class="{% if totali.ore_alunni < 0 %}text-danger{% endif %}">{{ totali.ore_alunni|floatformat:"2g" }}</td>
+                    <td class="{% if totali.minuti_assenza < 0 %}text-danger{% endif %}">{{ totali.minuti_assenza|floatformat:"0g" }}</td>
+                    <td class="{% if totali.ore_assenza < 0 %}text-danger{% endif %}">{{ totali.ore_assenza|floatformat:"2g" }}</td>
+                    <td class="{% if totali.ricavo < 0 %}text-danger{% endif %}">{{ totali.ricavo|floatformat:"2g" }}</td>
                 </tr>
             </tfoot>
             {% endif %}
@@ -173,8 +173,8 @@
                     <td>{{ riga.docente }}</td>
                     <td>{{ riga.lezione.data|date:"SHORT_DATE_FORMAT" }}</td>
                     <td>{{ riga.ora_inizio|time:"H:i" }}</td>
-                    <td>{{ riga.durata_minuti }}</td>
-                    <td>{{ riga.ore|floatformat:2 }}</td>
+                    <td class="{% if riga.durata_minuti < 0 %}text-danger{% endif %}">{{ riga.durata_minuti|floatformat:"0g" }}</td>
+                    <td class="{% if riga.ore < 0 %}text-danger{% endif %}">{{ riga.ore|floatformat:"2g" }}</td>
                     <td>
                         {% if riga.lezione.presenza %}
                             <span class="text-success">{% trans "Sì" %}</span>

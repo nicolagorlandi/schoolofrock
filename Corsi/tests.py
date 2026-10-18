@@ -868,6 +868,35 @@ class CalendarioLezioniTests(TestCase):
         self.assertEqual(totali['ricavo'], Decimal('75.00'))
         self.assertEqual(totali['differenza'], Decimal('0.00'))
 
+    def test_monthly_attendance_report_formats_large_numbers_with_thousands_separator(self):
+        self.lezione.durata_minuti = 12345
+        self.lezione.save(update_fields=['durata_minuti'])
+
+        response = self.client.get(
+            reverse('corsi:presenze-mensili'),
+            {'anno': '2026', 'mese': '10'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '12.345')
+        self.assertContains(response, '10.287,50')
+
+    def test_monthly_attendance_report_displays_negative_values_in_red(self):
+        self.corso.costo = Decimal('200.00')
+        self.corso.save(update_fields=['costo'])
+
+        response = self.client.get(
+            reverse('corsi:presenze-mensili'),
+            {'anno': '2026', 'mese': '10'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            '<td class="text-danger">-75,00</td>',
+            html=True,
+        )
+
     def test_monthly_revenue_uses_student_duration_relative_to_course_default(self):
         self.corso.durata_minuti = 120
         self.corso.save()
