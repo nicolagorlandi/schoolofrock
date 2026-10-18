@@ -42,10 +42,16 @@
   
       <nav class="navbar navbar-expand-lg me-auto mb-2 mb-lg-0 gap-3">
           <div class="container-fluid">
-            <div class="collapse navbar-collapse me-auto mb-2 mb-lg-0 gap-3" id="mainMenu">
-                          <a class="" href="#" id="menuRoot">
-                {% trans "Emporio Open on web" %}
+            <button class="navbar-toggler" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#mainMenu"
+                    aria-controls="mainMenu" aria-expanded="false"
+                    aria-label="{% trans 'Apri il menu di navigazione' %}">
+              <i class="fa-solid fa-bars" aria-hidden="true"></i>
+            </button>
+            <a class="navbar-brand" href="#" id="menuRoot">
+              {% trans "Emporio Open" %}
             </a>
+            <div class="collapse navbar-collapse me-auto mb-2 mb-lg-0 gap-3" id="mainMenu">
                     <!-- ROOT DROPDOWN -->
                     {% for root in MENU_TREE %}
                       <div class="dropdown">

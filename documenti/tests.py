@@ -201,6 +201,13 @@ class CausdocuManagementTests(TestCase):
 
         self.assertEqual(voce.parent.label, 'Archivi')
 
+    def test_navigation_has_a_mobile_menu_toggle(self):
+        response = self.client.get(reverse('pagamenti-list'))
+
+        self.assertContains(response, 'data-bs-target="#mainMenu"')
+        self.assertContains(response, 'aria-controls="mainMenu"')
+        self.assertContains(response, 'Apri il menu di navigazione')
+
     def test_create_update_and_list_payment_methods(self):
         form_response = self.client.get(reverse('pagamenti-create'))
         self.assertEqual(form_response.status_code, 200)

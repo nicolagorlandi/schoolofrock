@@ -20,3 +20,24 @@
 .dropdown-submenu.show > .submenu {
     display: block;
 }
+
+@media (max-width: 991.98px) {
+    #mainMenu > .dropdown {
+        width: 100%;
+    }
+
+    #mainMenu .dropdown-menu {
+        position: static;
+        width: 100%;
+        margin: 0;
+    }
+
+    #mainMenu .dropdown-submenu > .submenu {
+        margin-left: 0;
+        padding-left: 1rem;
+    }
+
+    #mainMenu .dropdown-item {
+        white-space: normal;
+    }
+}
