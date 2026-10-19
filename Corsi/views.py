@@ -1078,7 +1078,7 @@ def genera_tutte_ricevute(request):
 
     create_count = 0
     errori = []
-    alunni = Nominativi.objects.filter(pk__in=alunni_ids).order_by('NORAGSOC')
+    alunni = Nominativi.objects.filter(pk__in=alunni_ids).order_by('NORAGSOC').iterator()
     for nominativo in alunni:
         try:
             _crea_ricevuta_alunno(
