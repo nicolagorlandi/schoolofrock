@@ -7,12 +7,14 @@ class Corso(models.Model):
     descrizione = models.CharField(max_length=80, blank=True)
     note = models.TextField(blank=True, verbose_name=_('Note'))
     durata_minuti = models.PositiveIntegerField(
+        null=False,
         default=60,
         validators=[MinValueValidator(1)],
         verbose_name=_('Durata (minuti)'),
     )
-    di_gruppo = models.BooleanField(default=False, verbose_name=_('Di gruppo'))
+    di_gruppo = models.BooleanField(null=False,default=False, verbose_name=_('Di gruppo'))
     calcoloCosto = models.BooleanField(
+        null=False,
         default=False,
         verbose_name=_('Costo forfettario'),
     )
@@ -100,7 +102,7 @@ class Lezioni(models.Model):
         on_delete=models.SET_NULL,
         related_name='lezioni_fatturate',
     )
-    note = models.TextField(blank=True)
+    note = models.TextField(null=False,blank=True)
 
     def __str__(self):
         return f'Lezione del {self.data} - {self.alunno}'

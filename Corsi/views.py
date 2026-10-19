@@ -72,7 +72,7 @@ def _ricavo_mensile_alunno(corso, durata_minuti_alunno):
     return (
         corso.prezzo
         * Decimal(durata_minuti_alunno)
-        / Decimal(corso.durata_minuti)
+        / Decimal(corso.durata_minuti) if corso.durata_minuti else Decimal(1)
     ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
 
@@ -910,7 +910,7 @@ def _crea_ricevuta_alunno(
 ):
     with transaction.atomic():
         lezioni = list(
-            Lezioni.objects.select_for_update().filter(
+            Lezioni.objects.select_for_update(of=('self',)).filter(
                 alunno__alunno=nominativo,
                 data__range=(inizio_periodo, fine_periodo),
             ).select_related(
