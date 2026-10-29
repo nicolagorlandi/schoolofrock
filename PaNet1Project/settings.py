@@ -186,8 +186,14 @@ SELECT2_OPTIONS = {
     'allowClear': False,
 }
 
-# questo percorso ha senso solo in windows. Per pythonAnywhere va impostato a (WKHTMLTOPDF_CMD = '/usr/bin/wkhtmltopdf' dove è gia installato)
-WKHTMLTOPDF_CMD = 'C:/Program Files/wkhtmltopdf/bin/wkhtmltopdf.exe'
+WKHTMLTOPDF_CMD = env.str(
+    'WKHTMLTOPDF_CMD',
+    default=(
+        'C:/Program Files/wkhtmltopdf/bin/wkhtmltopdf.exe'
+        if os.name == 'nt'
+        else '/usr/bin/wkhtmltopdf'
+    ),
+)
 
 # gestione documenti (emporio frame)
 CCATCLI='CLI'

@@ -5,7 +5,7 @@ services:
     plan: free
     buildCommand: |
       apt-get update
-      apt-get install -y libjpeg-dev zlib1g-dev libfreetype6-dev
+      apt-get install -y libjpeg-dev zlib1g-dev libfreetype6-dev wkhtmltopdf
       pip install --upgrade pip
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
@@ -16,6 +16,8 @@ services:
         value: 3.10.12
       - key: RENDER
         value: true
+      - key: WKHTMLTOPDF_CMD
+        value: /usr/bin/wkhtmltopdf
       - key: DATABASE_URL
         value: postgresql://neondb_owner:npg_YW1hCngzG5ia@ep-summer-surf-baqea4i7-pooler.c-8.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
 
@@ -28,4 +30,3 @@ services:
         value: gorlandinicola@gmail.com
 
 databases:
-
