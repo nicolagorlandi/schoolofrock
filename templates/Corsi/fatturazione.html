@@ -102,6 +102,11 @@
                         <a class="btn btn-sm btn-outline-primary" href="{% url 'edit_ordine' order_id=riga.documento_id TipoDocumentoSelezionato='RF' %}">
                             {% trans "Apri ricevuta" %}
                         </a>
+                        <a class="btn btn-sm btn-info fa-solid fa-print"
+                           href="{% url 'stampaDocumento' pk=riga.documento_id %}"
+                           role="button"
+                           title="{% trans 'Stampa ricevuta' %}"
+                           aria-label="{% trans 'Stampa ricevuta' %}"></a>
                         {% for scadenza in riga.scadenze_non_pagate %}
                         <form method="post" action="{% url 'salda_scadenza' scadenza.pk %}" class="d-inline">
                             {% csrf_token %}

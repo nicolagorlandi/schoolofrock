@@ -22,6 +22,8 @@ from django.views.generic import CreateView, DeleteView, UpdateView
 from PaNet1Project import settings
 from documenti.models import Nominativi, Ord_Mast, Ord_dett, Scadenze, Settings
 from documenti.services import finalizza_documento
+import calendar
+import locale
 
 from .forms import (
     AlunnoFormSet,
@@ -956,6 +958,9 @@ def _crea_ricevuta_alunno(
         else:
             serie = None
 
+        locale.setlocale(locale.LC_TIME, "it_IT.UTF-8")
+        mese = calendar.month_name[lezione.data]
+
         documento = Ord_Mast.objects.create(
             DONUMORD=numero,
             DOALFORD=serie,
@@ -965,6 +970,7 @@ def _crea_ricevuta_alunno(
             DOCODINT=nominativo,
             DOCODUTE=utente,
             DOTIPDOC='RF',
+            DONOTE = f'Scuola di Musica mese di {mese}',
             slug=slugify(
                 f'ricevuta-{causale.CDCODICE}-{data_documento}-{numero}'
             ),

@@ -1201,6 +1201,10 @@ class CalendarioLezioniTests(TestCase):
                 },
             ),
         )
+        self.assertContains(
+            response,
+            reverse('stampaDocumento', kwargs={'pk': documento.pk}),
+        )
         self.assertEqual(documento.DOCODINT, self.alunno_nominativo)
         self.assertEqual(documento.DOCODPAG, self.pagamento)
         righe_documento = list(

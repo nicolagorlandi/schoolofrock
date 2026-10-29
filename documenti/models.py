@@ -864,11 +864,11 @@ class Ord_Mast(models.Model):
 
     @property
     def articoliDocumento(self):
-        groupConcat = Ord_dett.objects.filter(DOCODICE=self.DOCODICE).values('DOCODICE').annotate(value=GroupConcat("DOCODART",True)).annotate(somma=Sum("DOQTAUM1", default=0))
-        if groupConcat.exists():
-            return '{} - {}'.format(int(groupConcat[0]['somma']) , groupConcat[0]['value'])
-        else:
-            return "" 
+        # groupConcat = Ord_dett.objects.filter(DOCODICE=self.DOCODICE).values('DOCODICE').annotate(value=GroupConcat("DOCODART",True)).annotate(somma=Sum("DOQTAUM1", default=0))
+        # if groupConcat.exists():
+        #     return '{} - {}'.format(int(groupConcat[0]['somma']) , groupConcat[0]['value'])
+        # else:
+        return "" 
     
 class GroupConcat(Aggregate):
     function = 'GROUP_CONCAT'
