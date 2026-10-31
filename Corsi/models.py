@@ -31,6 +31,12 @@ class Corso(models.Model):
         related_name='corsi',
     )
     prezzo = models.DecimalField(max_digits=10, decimal_places=2)
+    prezzo_iscrizione = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        verbose_name=_('Prezzo iscrizione'),
+    )
     costo = models.DecimalField(max_digits=10, decimal_places=2)
     data_inizio = models.DateField()
     data_fine = models.DateField()
@@ -71,6 +77,21 @@ class Alunno(models.Model):
     ora_inizio = models.TimeField()
     durata_minuti = models.PositiveIntegerField(
         validators=[MinValueValidator(1)],
+    )
+    prezzo = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name=_('Prezzo'),
+    )
+    ricevuta_iscrizione = models.ForeignKey(
+        'documenti.Ord_Mast',
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name='iscrizioni_corso',
+        verbose_name=_('Ricevuta iscrizione'),
     )
 
     def __str__(self):

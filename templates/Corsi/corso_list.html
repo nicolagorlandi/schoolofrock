@@ -6,6 +6,7 @@
     <h1 class="h2">{% trans "Corsi" %}</h1>
     <div class="d-flex gap-2">
         <a class="btn btn-outline-primary" href="{% url 'corsi:fatturazione' %}">{% trans "Fatturazione" %}</a>
+        <a class="btn btn-outline-warning" href="{% url 'corsi:iscrizioni' %}">{% trans "Genera iscrizioni" %}</a>
         <a class="btn btn-outline-success" href="{% url 'corsi:presenze-mensili' %}">{% trans "Presenze Mensili" %}</a>
         <a class="btn btn-outline-info" href="{% url 'corsi:calendario-lezioni' %}">{% trans "Calendario lezioni" %}</a>
         <a class="btn btn-info" href="{% url 'corsi:lezioni' %}">{% trans "Gestione lezioni" %}</a>
@@ -21,6 +22,7 @@
                 <th>{% trans "Insegnante" %}</th>
                 <th>{% trans "Articolo fatturazione" %}</th>
                 <th>{% trans "Prezzo" %}</th>
+                <th>{% trans "Prezzo iscrizione" %}</th>
                 <th>{% trans "Calcolo costo" %}</th>
                 <th>{% trans "Costo" %}</th>
                 <th>{% trans "Durata (minuti)" %}</th>
@@ -38,6 +40,7 @@
                 <td>{{ corso.insegnante }}</td>
                 <td>{{ corso.articolo|default:"—" }}</td>
                 <td>{{ corso.prezzo|floatformat:2 }}</td>
+                <td>{{ corso.prezzo_iscrizione|floatformat:2 }}</td>
                 <td>{% if corso.calcoloCosto %}{% trans "Forfettario" %}{% else %}{% trans "Orario" %}{% endif %}</td>
                 <td>{{ corso.costo|floatformat:2 }}</td>
                 <td>{{ corso.durata_minuti }}</td>
@@ -53,6 +56,7 @@
                 </td>
                 <td class="text-nowrap">
                     <a class="btn btn-sm btn-primary" href="{% url 'corsi:modifica' corso.pk %}">{% trans "Modifica" %}</a>
+                    <a class="btn btn-sm btn-outline-warning" href="{% url 'corsi:iscrizioni' %}?corso={{ corso.pk }}">{% trans "Iscrizioni" %}</a>
                     <form method="post" action="{% url 'corsi:duplica' corso.pk %}" class="d-inline">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-sm btn-outline-secondary">{% trans "Duplica" %}</button>
@@ -62,7 +66,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="12" class="text-center">{% trans "Non ci sono corsi." %}</td>
+                <td colspan="13" class="text-center">{% trans "Non ci sono corsi." %}</td>
             </tr>
             {% endfor %}
         </tbody>

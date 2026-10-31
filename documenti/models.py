@@ -1,7 +1,9 @@
 from django.db import models
+from django.db import transaction
 from django.template.defaultfilters import slugify
 from django.urls import reverse
 from django.utils import timezone
+from datetime import date, time
 from uuid import uuid4
 from django.contrib.auth.models import User
 from django.db import models
@@ -685,6 +687,14 @@ class Ord_Mast(models.Model):
 
     DOIMPACC = models.DecimalField(null=True, blank=True, max_digits=20, decimal_places=2, default=0) # Importo Acconto
     DOIMPFIN = models.DecimalField(null=True, blank=True, max_digits=20, decimal_places=2, default=0) # Importo Finanziamento
+    DO_CASSA = models.DecimalField(
+        db_column='DO_CASSA',
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        default=0,
+    )
 
     DOTIPDOC = models.CharField(null=True, blank=True, max_length=2) # tipo base documento (OR,FA,FV...)
     #Utility fields
@@ -730,14 +740,15 @@ class Ord_Mast(models.Model):
         ritenuteCalcolate = 0
 
         dettagli = self.ord_dett_set.select_related(
-            'DOCODART__ARCODIVA'
+            'DOCODART__ARCODIVA',
+            'DOCODIVA',
         ).all()
 
         for dettaglio in dettagli:
             if dettaglio.DOCODART is None:
                 continue
 
-            codice_iva = dettaglio.DOCODART.ARCODIVA
+            codice_iva = dettaglio.DOCODIVA or dettaglio.DOCODART.ARCODIVA
             codice = codice_iva.CICODICE if codice_iva else ''
             aliquota = codice_iva.CIPERIVA if codice_iva else Decimal('0')
             valore_riga = (
@@ -931,6 +942,12 @@ class Ord_dett(models.Model):
     DODESART = models.CharField(null=True, blank=True, max_length=80)
     DOPREZZO = models.DecimalField(null=True, blank=True, decimal_places=5,max_digits=20,default=0)
     DODESSUP = models.TextField(null=True, blank=True)    
+    DOCODIVA = models.ForeignKey(
+        Codiciva,
+        blank=True,
+        null=True,
+        on_delete=models.RESTRICT,
+    )
 
     # evasione riferimento riga documento (rispetto a Emporio open qui abbiamo direttamente l'id di riga)
     # Non si può cancellare una riga evasa 
@@ -944,9 +961,15 @@ class Ord_dett(models.Model):
     DOIMPEGN = models.IntegerField(null=True, blank=True, default=0)
     DOORDINA = models.IntegerField(null=True, blank=True, default=0)
     DOCODUNI = models.ForeignKey(Unita, blank=True, null=True, on_delete=models.RESTRICT) # on_update non esiste in Django
+    DORIGCASSA = models.BooleanField(default=False)
 
     # al salvataggio imposto i flag di magazzzino
     def save(self, *args, **kwargs):
+        if self.DOCODIVA_id is None and self.DOCODART_id is not None:
+            self.DOCODIVA_id = Articoli.objects.filter(
+                pk=self.DOCODART_id
+            ).values_list('ARCODIVA_id', flat=True).first()
+
         # leggo la causale di magazzino collegata..
         causMaga = self.DOCODICE.DOCODCAU.CDCAUMAG
         carSca=0
@@ -968,6 +991,280 @@ class Ord_dett(models.Model):
             self.DORISERV=riserv               
 
         super().save(*args, **kwargs)
+
+
+class Azienda(models.Model):
+    NOME = models.CharField(max_length=50, primary_key=True, default="")
+    EURO = models.BooleanField(null=True, blank=True)
+    LOGO = models.BinaryField(null=True, blank=True)
+    INDIRIZZO = models.CharField(max_length=50, null=True, blank=True)
+    TELEFONO = models.CharField(max_length=30, null=True, blank=True)
+    FAX = models.CharField(max_length=30, null=True, blank=True)
+    CODICEIVA = models.CharField(max_length=15, null=True, blank=True)
+    TASSO = models.DecimalField(max_digits=10, decimal_places=0, null=True, blank=True)
+    NOTE = models.TextField(null=True, blank=True)
+    AVVISI = models.TextField(null=True, blank=True)
+    CODFEST = models.CharField(max_length=5, null=True, blank=True)
+    AZDIRBCK = models.CharField(max_length=250, null=True, blank=True)
+    AZDAYBCK = models.CharField(max_length=7, null=True, blank=True)
+    AZORABCK = models.DecimalField(max_digits=10, decimal_places=0, null=True, blank=True)
+    AZMINBCK = models.DecimalField(max_digits=10, decimal_places=0, null=True, blank=True)
+    AZUSR_ON = models.DecimalField(max_digits=10, decimal_places=0, null=True, blank=True)
+    AZSTAMPA = models.CharField(max_length=1, null=True, blank=True)
+    AZDAYIND = models.CharField(max_length=7, null=True, blank=True)
+    AZ_CLOSE = models.CharField(max_length=1, null=True, blank=True)
+    AZ_ADMIN = models.CharField(max_length=5, null=True, blank=True)
+    AZNUMEXP = models.DecimalField(max_digits=10, decimal_places=0, null=True, blank=True)
+    AZDATEXP = models.DateField(null=True, blank=True)
+    AZORAEXP = models.IntegerField(null=True, blank=True)
+    AZMINEXP = models.IntegerField(null=True, blank=True)
+    AZPRZDEC = models.IntegerField(null=True, blank=True)
+    AZPOSTIT = models.CharField(max_length=1, null=True, blank=True)
+    AZCOLPOS = models.DecimalField(max_digits=10, decimal_places=0, null=True, blank=True)
+    AZ_STATO = models.IntegerField(null=True, blank=True)
+    AZCOLHLP = models.DecimalField(max_digits=10, decimal_places=0, null=True, blank=True)
+    AZCOLALL = models.DecimalField(max_digits=10, decimal_places=0, null=True, blank=True)
+    AZPOSDAT = models.CharField(max_length=1, null=True, blank=True)
+    AZDECMAG = models.IntegerField(null=True, blank=True)
+    AZDOCUNI = models.CharField(max_length=50, null=True, blank=True)
+    AZKEYCAS = models.CharField(max_length=1, null=True, blank=True)
+    AZDEBSYS = models.CharField(max_length=1, null=True, blank=True)
+    AZBAFONT = models.CharField(max_length=50, default="MS Sans Serif", null=True, blank=True)
+    AZBAFSIZ = models.IntegerField(default=8, null=True, blank=True)
+    AZ_EMAIL = models.CharField(max_length=254, null=True, blank=True)
+    AZBKMAIL = models.CharField(max_length=254, null=True, blank=True)
+    AZDAYEML = models.CharField(max_length=7, null=True, blank=True)
+    AZ_SMTP = models.CharField(max_length=50, null=True, blank=True, db_column="AZ__SMTP")
+    AZ_PORT = models.IntegerField(null=True, blank=True, db_column="AZ__PORT")
+    AZ_USER = models.CharField(max_length=50, null=True, blank=True, db_column="AZ__USER")
+    AZ_PWD = models.CharField(max_length=50, null=True, blank=True, db_column="AZ___PWD")
+    AZCIIOFF = models.IntegerField(null=True, blank=True)
+    AZDIRATT = models.CharField(max_length=254, null=True, blank=True)
+    AZ_SSL = models.CharField(max_length=1, default="N", null=True, blank=True, db_column="AZ___SSL")
+    AZ_WEB = models.CharField(max_length=254, null=True, blank=True, db_column="AZ___WEB")
+    AZOFFSET = models.IntegerField(default=20, null=True, blank=True)
+    AZPRSTEP = models.IntegerField(default=0, null=True, blank=True)
+    AZGESSYN = models.IntegerField(default=0, null=True, blank=True)
+    AZSYNINP = models.CharField(max_length=5, null=True, blank=True)
+    AZSYNOUT = models.CharField(max_length=5, null=True, blank=True)
+    AZEMAILSY = models.CharField(max_length=255, null=True, blank=True)
+    AZMAILPW = models.CharField(max_length=50, null=True, blank=True)
+    AZCODMSR = models.CharField(max_length=10, default="DEFAULT", null=True, blank=True)
+    AZNUMCIV = models.CharField(max_length=10, null=True, blank=True)
+    AZ_CITTA = models.CharField(max_length=50, null=True, blank=True)
+    AZ_PR = models.CharField(max_length=5, null=True, blank=True, db_column="AZ____PR")
+    AZMAXATT = models.IntegerField(default=1, null=True, blank=True)
+    AZCODFIS = models.CharField(max_length=16, null=True, blank=True)
+    AZSRVSYN = models.CharField(max_length=50, default="imap.gmail.com", null=True, blank=True)
+    AZORAAPE = models.IntegerField(null=True, blank=True)
+    AZORAPRA = models.IntegerField(null=True, blank=True)
+    AZORAPOM = models.IntegerField(null=True, blank=True)
+    AZORAFIN = models.TimeField(default=time(17, 0), null=True, blank=True)
+    AZMODQUA = models.CharField(max_length=254, null=True, blank=True)
+    AZCODGCQ = models.CharField(max_length=5, null=True, blank=True)
+    AZMINCLO = models.SmallIntegerField(default=2, null=True, blank=True)
+    AZCODIVA = models.CharField(max_length=5, null=True, blank=True)
+    AZCODUNI = models.CharField(max_length=5, null=True, blank=True)
+    AZCODREP = models.CharField(max_length=5, null=True, blank=True)
+    AZCODCAT = models.CharField(max_length=5, null=True, blank=True)
+    AZLENCLI = models.IntegerField(default=5, null=True, blank=True)
+    AZLENART = models.IntegerField(default=13, null=True, blank=True)
+    AZCODBAR = models.IntegerField(null=True, blank=True)
+    AZMAGDEF = models.CharField(max_length=5, default="00001", null=True, blank=True)
+    AZMULMAG = models.CharField(max_length=1, default="N", null=True, blank=True)
+    AZVARART = models.CharField(max_length=1, default="N", null=True, blank=True)
+    AZSERCLI = models.CharField(max_length=23, null=True, blank=True)
+    AZSERPRO = models.CharField(max_length=23, null=True, blank=True)
+    AZCODVAL = models.CharField(max_length=3, null=True, blank=True)
+    AZARTDES = models.CharField(max_length=1, null=True, blank=True)
+    AZPRGINT = models.IntegerField(null=True, blank=True)
+    AZMAGWIP = models.CharField(max_length=5, null=True, blank=True)
+    AZPAGDEF = models.CharField(max_length=5, null=True, blank=True)
+    AZARTINS = models.ForeignKey(
+        Articoli,
+        null=True,
+        blank=True,
+        on_delete=models.RESTRICT,
+        related_name="aziende_articolo_iscrizione",
+        verbose_name="Articolo iscrizione",
+    )
+    AZARTTES = models.ForeignKey(
+        Articoli,
+        null=True,
+        blank=True,
+        on_delete=models.RESTRICT,
+        related_name="aziende_articolo_tessera",
+        verbose_name="Articolo tessera",
+    )
+    AZBANDEF = models.CharField(max_length=15, null=True, blank=True)
+    AZMODCAS = models.CharField(max_length=1, null=True, blank=True)
+    AZINTDDT = models.TextField(null=True, blank=True)
+    AZPIEDDT = models.TextField(null=True, blank=True)
+    AZPIEDDD = models.TextField(null=True, blank=True)
+    AZSTPRIG = models.IntegerField(default=0, null=True, blank=True)
+    AZGRUPRZ = models.CharField(max_length=5, null=True, blank=True)
+    AZMODMAT = models.CharField(max_length=1, default="S", null=True, blank=True)
+    AZSTAGRU = models.IntegerField(default=0, null=True, blank=True)
+    AZMODUBI = models.CharField(max_length=1, default="S", null=True, blank=True)
+    AZMODPRO = models.CharField(max_length=1, default="S", null=True, blank=True)
+    AZMODCLA = models.CharField(max_length=1, default="S", null=True, blank=True)
+    AZGESSEM = models.IntegerField(default=0, null=True, blank=True)
+    AZPROVVI = models.IntegerField(null=True, blank=True)
+    AZCODTEL = models.CharField(max_length=23, null=True, blank=True)
+    AZMODRIP = models.CharField(max_length=1, null=True, blank=True)
+    AZINTBAN = models.CharField(max_length=70, null=True, blank=True)
+    AZINTBAR = models.CharField(max_length=70, null=True, blank=True)
+    AZCODMAR = models.CharField(max_length=5, null=True, blank=True)
+    AZMOD_QU = models.CharField(max_length=1, default="S", null=True, blank=True)
+    AZALFPRE = models.CharField(max_length=2, default="A", null=True, blank=True)
+    AZSCACHK = models.CharField(max_length=1, default="N", null=True, blank=True)
+    AZLORIVA = models.SmallIntegerField(default=0, null=True, blank=True)
+    AZDOCPRI = models.CharField(max_length=50, null=True, blank=True)
+    AZMODCAL = models.CharField(max_length=1, default="N", null=True, blank=True)
+    AZREGFIS = models.CharField(max_length=4, default="RF01", null=True, blank=True)
+    AZINDCAP = models.CharField(max_length=5, null=True, blank=True)
+    AZMARDOC = models.SmallIntegerField(default=0, null=True, blank=True)
+    AZINTINT = models.CharField(max_length=70, null=True, blank=True)
+    AZCODCAS = models.ForeignKey(
+        Articoli,
+        db_column='AZCODCAS',
+        to_field='ARCODICE',
+        null=True,
+        blank=True,
+        on_delete=models.RESTRICT,
+        related_name='aziende_articolo_cassa',
+        verbose_name='Articolo cassa previdenziale',
+    )
+    AZCATCNO = models.CharField(max_length=5, default="CLFOR", null=True, blank=True)
+    AZCATCAR = models.CharField(max_length=5, default="ART", null=True, blank=True)
+    AZCOMRIT = models.CharField(max_length=15, null=True, blank=True)
+    AZCOMPRE = models.CharField(max_length=15, null=True, blank=True)
+    AZCOMCAS = models.CharField(max_length=15, null=True, blank=True)
+    AZCOMSPE = models.CharField(max_length=15, null=True, blank=True)
+    AZCOMCLI = models.CharField(max_length=15, null=True, blank=True)
+    AZCOMFOR = models.CharField(max_length=15, null=True, blank=True)
+    AZCOMIVA = models.CharField(max_length=15, null=True, blank=True)
+    AZCOMIVV = models.CharField(max_length=15, null=True, blank=True)
+    AZIMPBOL = models.DecimalField(max_digits=20, decimal_places=5, default=Decimal("2.00000"), null=True, blank=True)
+    AZMINBOL = models.DecimalField(max_digits=20, decimal_places=5, default=Decimal("77.47000"), null=True, blank=True)
+    AZCODBOL = models.CharField(max_length=5, default="ESC15", null=True, blank=True)
+    AZLISVEN = models.CharField(max_length=15, null=True, blank=True)
+    AZCAUFCO = models.CharField(max_length=5, default="FVCO", null=True, blank=True)
+    AZGESCOM = models.CharField(max_length=1, default="N", null=True, blank=True)
+    AZGESORG = models.CharField(max_length=1, default="N", null=True, blank=True)
+    AzTipInt = models.CharField(max_length=5, null=True, blank=True)
+    Az_Font = models.CharField(max_length=50, null=True, blank=True, db_column="Az__Font")
+    AZSZFONT = models.FloatField(null=True, blank=True)
+    AzIdonei = models.CharField(max_length=5, null=True, blank=True)
+    AZGARMES = models.IntegerField(default=24, null=True, blank=True)
+    AZDATCON = models.IntegerField(default=0, null=True, blank=True)
+    AZPIALAY = models.IntegerField(default=0, null=True, blank=True)
+    AZSTXINT = models.SmallIntegerField(default=0, null=True, blank=True)
+    AZSTSMTP = models.SmallIntegerField(default=0, null=True, blank=True)
+    AZCODMST = models.CharField(max_length=10, default="DEFAULT", null=True, blank=True)
+    AZCODMCL = models.CharField(max_length=50, null=True, blank=True)
+    AZMAILTC = models.IntegerField(default=1, null=True, blank=True)
+    AZAUTOCC = models.IntegerField(default=0, null=True, blank=True)
+    AZGRUTEC = models.CharField(max_length=5, null=True, blank=True)
+    AZPCOPOS = models.FloatField(default=255, null=True, blank=True)
+    AZDFLPRI = models.FloatField(null=True, blank=True)
+    azcodpri = models.FloatField(null=True, blank=True)
+    AZ_CCIA = models.CharField(max_length=50, null=True, blank=True, db_column="AZ__CCIA")
+    AZITELID = models.CharField(max_length=50, null=True, blank=True)
+    AZDATLIB = models.DateField(default=date(2014, 10, 15), null=True, blank=True)
+    AZPDFFRO = models.IntegerField(default=0, null=True, blank=True)
+    AZCATBOL = models.CharField(max_length=10, null=True, blank=True)
+    AZDURDOC = models.SmallIntegerField(default=0, null=True, blank=True)
+    AZSOSPSO = models.CharField(max_length=5, null=True, blank=True)
+    AZCAUINT = models.CharField(max_length=5, null=True, blank=True)
+    AZSRFACO = models.CharField(max_length=23, null=True, blank=True)
+    AZCAUCOM = models.CharField(max_length=5, null=True, blank=True)
+    AZGESCON = models.CharField(max_length=1, default="N", null=True, blank=True)
+    AZCAUINC = models.CharField(max_length=5, null=True, blank=True)
+    AZCAUPAG = models.CharField(max_length=5, null=True, blank=True)
+    AZ_GUEST = models.CharField(max_length=5, null=True, blank=True)
+    AZMSEVPE = models.CharField(max_length=10, null=True, blank=True)
+    AZMSEVCL = models.CharField(max_length=10, null=True, blank=True)
+    AZBCTIP1 = models.PositiveSmallIntegerField(default=0, null=True, blank=True)
+    AZBCLAB1 = models.CharField(max_length=50, default="Barcode EAN", null=True, blank=True)
+    AZBCTIP2 = models.PositiveSmallIntegerField(default=0, null=True, blank=True)
+    AZBCLAB2 = models.CharField(max_length=50, default="Barcode 2", null=True, blank=True)
+    AZBCTIP3 = models.PositiveSmallIntegerField(default=0, null=True, blank=True)
+    AZBCLAB3 = models.CharField(max_length=50, default="Barcode 3", null=True, blank=True)
+    AZBCPXB1 = models.CharField(max_length=12, default="99", null=True, blank=True)
+    AZBCPXB2 = models.CharField(max_length=12, null=True, blank=True)
+    AZBCPXB3 = models.CharField(max_length=12, null=True, blank=True)
+    AZMODING = models.CharField(max_length=1, null=True, blank=True)
+    AZCANTIE = models.CharField(max_length=1, default="N", null=True, blank=True)
+    AZPRAINI = models.TimeField(default=time(12, 0), null=True, blank=True)
+    AZPRAFIN = models.TimeField(default=time(13, 0), null=True, blank=True)
+    AZORAINI = models.TimeField(default=time(8, 0), null=True, blank=True)
+    AZAPIUID = models.CharField(max_length=60, null=True, blank=True)
+    AZAPIKEY = models.CharField(max_length=60, null=True, blank=True)
+    AZAPIURL = models.CharField(max_length=254, null=True, blank=True)
+    AZBCSTA1 = models.PositiveIntegerField(default=0, null=True, blank=True)
+    AZBCSTA2 = models.PositiveIntegerField(default=0, null=True, blank=True)
+    AZBCSTA3 = models.PositiveIntegerField(default=0, null=True, blank=True)
+    AZUTECAN = models.CharField(max_length=5, null=True, blank=True)
+    AZGRUCAN = models.CharField(max_length=5, null=True, blank=True)
+    AZCODSDI = models.CharField(max_length=7, null=True, blank=True)
+    AZWEBURL = models.CharField(max_length=254, null=True, blank=True)
+    AZWEBART = models.IntegerField(default=0, null=True, blank=True)
+    AZWEBCLI = models.IntegerField(default=0, null=True, blank=True)
+    AZUTECAP = models.CharField(max_length=5, null=True, blank=True)
+    AZCATEVI = models.PositiveIntegerField(null=True, blank=True, db_index=True)
+    AZCATEVP = models.PositiveIntegerField(null=True, blank=True, db_index=True)
+    AZCATEVF = models.PositiveIntegerField(null=True, blank=True, db_index=True)
+    AZBCTIV1 = models.PositiveSmallIntegerField(default=0, null=True, blank=True)
+    AZBCLAV1 = models.CharField(max_length=50, default="Barcode EAN", null=True, blank=True)
+    AZBCPXV1 = models.CharField(max_length=12, null=True, blank=True)
+    AZBCSTV1 = models.PositiveIntegerField(default=0, null=True, blank=True)
+    AZUTEALE = models.CharField(max_length=5, null=True, blank=True, db_index=True)
+    AZGIOALE = models.IntegerField(default=0, null=True, blank=True)
+    AZMODLOT = models.CharField(max_length=1, default="N", null=True, blank=True)
+    AZCONLOT = models.CharField(max_length=50, null=True, blank=True)
+    AZCONPAR = models.CharField(max_length=100, null=True, blank=True)
+    AZLAVDEF = models.CharField(max_length=20, null=True, blank=True)
+    AZDUEUNI = models.IntegerField(default=0, null=True, blank=True)
+    AZ_CASSA = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0.00"), null=True, blank=True)
+    AZSERBOL = models.CharField(max_length=23, null=True, blank=True)
+    AZNOTBOL = models.CharField(max_length=254, null=True, blank=True)
+    AZMENPRV = models.IntegerField(default=0, null=True, blank=True)
+    AZTIPAFE = models.CharField(max_length=35, default="CODICE ARTICOLO", null=True, blank=True)
+
+    class Meta:
+        db_table = "azienda"
+        indexes = [
+            models.Index(fields=["AZCONLOT", "AZCONPAR"], name="azienda_conlot_conpar_idx"),
+        ]
+
+    @classmethod
+    def get_azienda(cls):
+        key = "documenti_azienda"
+        azienda = cache.get(key)
+        if azienda is None:
+            azienda = cls.objects.order_by("NOME").first()
+            if azienda is None:
+                raise cls.DoesNotExist(
+                    "La tabella azienda non contiene record. Eseguire le migrazioni."
+                )
+            cache.set(key, azienda, timeout=None)
+        return azienda
+
+    def _invalidate_cache_after_commit(self):
+        transaction.on_commit(lambda: cache.delete("documenti_azienda"))
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self._invalidate_cache_after_commit()
+
+    def delete(self, *args, **kwargs):
+        result = super().delete(*args, **kwargs)
+        self._invalidate_cache_after_commit()
+        return result
+
+    def __str__(self):
+        return self.NOME
 
 
 # da trasformare in Azienda da Emporio Open
@@ -1075,4 +1372,3 @@ class Comuni(models.Model):
 
     def __str__(self):
         return f"{self.COCODICE} - {self.CODESCRI}"
-

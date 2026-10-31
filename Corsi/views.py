@@ -20,7 +20,14 @@ from django.views.decorators.http import require_http_methods, require_POST
 from django.views.generic import CreateView, DeleteView, UpdateView
 
 from PaNet1Project import settings
-from documenti.models import Nominativi, Ord_Mast, Ord_dett, Scadenze, Settings
+from documenti.models import (
+    Azienda,
+    Nominativi,
+    Ord_Mast,
+    Ord_dett,
+    Scadenze,
+    Settings,
+)
 from documenti.services import finalizza_documento
 import calendar
 import locale
@@ -29,6 +36,7 @@ from .forms import (
     AlunnoFormSet,
     CorsoForm,
     FatturazioneForm,
+    IscrizioniForm,
     PeriodoLezioniForm,
     PresenzeMensiliForm,
 )
@@ -70,7 +78,16 @@ def _importo_orario(minuti, tariffa_oraria):
     ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
 
-def _ricavo_mensile_alunno(corso, durata_minuti_alunno):
+def _ricavo_mensile_alunno(
+    corso,
+    durata_minuti_alunno,
+    prezzo_alunno=None,
+):
+    if prezzo_alunno is not None:
+        return prezzo_alunno.quantize(
+            Decimal('0.01'),
+            rounding=ROUND_HALF_UP,
+        )
     return (
         corso.prezzo
         * Decimal(durata_minuti_alunno)
@@ -90,7 +107,10 @@ class CorsoFormsetMixin:
             self._formset = AlunnoFormSet(
                 data=self.request.POST if self.request.method == 'POST' else None,
                 instance=corso,
-                queryset=Alunno.objects.order_by(
+                queryset=Alunno.objects.select_related(
+                    'alunno',
+                    'ricevuta_iscrizione',
+                ).order_by(
                     Case(
                         When(giorno_settimana='lunedi', then=Value(1)),
                         When(giorno_settimana='martedi', then=Value(2)),
@@ -480,7 +500,7 @@ def gestione_lezioni(request):
                                 )
                             ).only('alunno_id', 'data', 'data_ricorrenza'),
                         )
-                    )
+                    ).iterator()
                     for riga in righe_alunno:
                         date_esistenti = {
                             lezione.data_ricorrenza or lezione.data
@@ -562,7 +582,7 @@ def presenze_mensili(request):
             'data',
             'ora_inizio',
             'alunno__ora_inizio',
-        )
+        ).iterator()
 
         corsi_per_id = {}
         alunni_per_chiave = {}
@@ -727,6 +747,88 @@ def _lezioni_fatturazione_periodo(
     return lezioni
 
 
+def _elimina_ricevute(request, documento_ids):
+    form = FatturazioneForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, 'Selezionare un periodo e una causale validi.')
+        return redirect('corsi:fatturazione')
+
+    anno = form.cleaned_data['anno']
+    mese = form.cleaned_data['mese']
+    causale = form.cleaned_data['causale']
+    alunno = form.cleaned_data['alunno']
+    corso = form.cleaned_data['corso']
+    redirect_response = _redirect_fatturazione(
+        anno, mese, causale, alunno, corso
+    )
+
+    if not documento_ids:
+        messages.error(request, 'Selezionare almeno una ricevuta da eliminare.')
+        return redirect_response
+
+    if any(not documento_id.isdecimal() for documento_id in documento_ids):
+        messages.error(request, 'La selezione delle ricevute non è valida.')
+        return redirect_response
+
+    documento_ids = {int(documento_id) for documento_id in documento_ids}
+    inizio_periodo = date(anno, mese, 1)
+    fine_periodo = date(anno, mese, monthrange(anno, mese)[1])
+
+    with transaction.atomic():
+        lezioni = _lezioni_fatturazione_periodo(
+            inizio_periodo,
+            fine_periodo,
+            alunno=alunno,
+            corso=corso,
+        )
+        documenti_validi = set(
+            lezioni.filter(
+                documento_fatturazione__DOTIPDOC='RF',
+            ).values_list('documento_fatturazione_id', flat=True).distinct()
+        )
+        if not documento_ids.issubset(documenti_validi):
+            messages.error(
+                request,
+                'Una o più ricevute selezionate non appartengono alla '
+                'fatturazione visualizzata.',
+            )
+            return redirect_response
+
+        documenti = list(
+            Ord_Mast.objects.select_for_update().filter(
+                pk__in=documento_ids,
+                DOTIPDOC='RF',
+            )
+        )
+        if len(documenti) != len(documento_ids):
+            messages.error(request, 'Una o più ricevute non sono più disponibili.')
+            return redirect_response
+
+        for documento in documenti:
+            documento.delete()
+
+    messages.success(
+        request,
+        f'Eliminate {len(documento_ids)} ricevute fiscali.',
+    )
+    return redirect_response
+
+
+@login_required
+@require_POST
+def elimina_ricevuta(request, documento_id):
+    return _elimina_ricevute(request, [str(documento_id)])
+
+
+@login_required
+@require_POST
+def elimina_ricevute_selezionate(request):
+    return _elimina_ricevute(
+        request,
+        request.POST.getlist('documenti_ids'),
+    )
+
+
 @login_required
 @require_http_methods(['GET'])
 def fatturazione_mensile(request):
@@ -754,7 +856,7 @@ def fatturazione_mensile(request):
             'alunno__corso__descrizione',
             'alunno__corso_id',
             'data',
-        )
+        ).iterator()
 
         righe_per_alunno = {}
         for lezione in lezioni:
@@ -765,6 +867,7 @@ def fatturazione_mensile(request):
                     'alunno': alunno,
                     'corsi_per_id': {},
                     'documenti': set(),
+                    'ricevute_fiscali': set(),
                     'numero_lezioni': 0,
                     'numero_lezioni_fatturate': 0,
                 },
@@ -773,6 +876,10 @@ def fatturazione_mensile(request):
             if lezione.documento_fatturazione_id:
                 riepilogo['numero_lezioni_fatturate'] += 1
                 riepilogo['documenti'].add(lezione.documento_fatturazione_id)
+                if lezione.documento_fatturazione.DOTIPDOC == 'RF':
+                    riepilogo['ricevute_fiscali'].add(
+                        lezione.documento_fatturazione_id
+                    )
 
             corso = lezione.alunno.corso
             corso_riepilogo = riepilogo['corsi_per_id'].setdefault(
@@ -780,6 +887,7 @@ def fatturazione_mensile(request):
                 {
                     'corso': corso,
                     'durata_minuti_alunno': lezione.alunno.durata_minuti,
+                    'prezzo_alunno': lezione.alunno.prezzo,
                     'minuti': 0,
                 },
             )
@@ -795,7 +903,7 @@ def fatturazione_mensile(request):
         scadenze_per_documento = {}
         for scadenza in Scadenze.objects.filter(
             SCCODICE_id__in=documenti_ids
-        ).order_by('SCNUMSCA', 'pk'):
+        ).order_by('SCNUMSCA', 'pk').iterator():
             scadenze_per_documento.setdefault(
                 scadenza.SCCODICE_id, []
             ).append(scadenza)
@@ -817,6 +925,7 @@ def fatturazione_mensile(request):
                 importo = _ricavo_mensile_alunno(
                     corso,
                     corso_riepilogo['durata_minuti_alunno'],
+                    corso_riepilogo['prezzo_alunno'],
                 )
                 totale += importo
                 articolo_mancante = (
@@ -845,6 +954,7 @@ def fatturazione_mensile(request):
             documento_id = (
                 next(iter(riepilogo['documenti'])) if fatturata else None
             )
+            eliminabile = documento_id in riepilogo['ricevute_fiscali']
             scadenze = (
                 scadenze_per_documento.get(documento_id, [])
                 if documento_id
@@ -869,6 +979,7 @@ def fatturazione_mensile(request):
                     'corsi': corsi_riepilogo,
                     'totale': totale,
                     'documento_id': documento_id,
+                    'eliminabile': eliminabile,
                     'totale_documento': totale_documento,
                     'scadenze': scadenze,
                     'pagato': pagato,
@@ -892,6 +1003,10 @@ def fatturazione_mensile(request):
             'righe_fatturazione': righe_fatturazione,
             'numero_ricevute_generabili': sum(
                 riga['generabile'] for riga in righe_fatturazione
+            ),
+            'numero_ricevute_eliminabili': sum(
+                riga['eliminabile']
+                for riga in righe_fatturazione
             ),
             'totale_documenti_pagati': totale_documenti_pagati,
             'totale_documenti_non_pagati': totale_documenti_non_pagati,
@@ -942,6 +1057,7 @@ def _crea_ricevuta_alunno(
                 {
                     'corso': corso,
                     'durata_minuti_alunno': lezione.alunno.durata_minuti,
+                    'prezzo_alunno': lezione.alunno.prezzo,
                 },
             )
 
@@ -959,7 +1075,7 @@ def _crea_ricevuta_alunno(
             serie = None
 
         locale.setlocale(locale.LC_TIME, "it_IT.UTF-8")
-        mese = calendar.month_name[lezione.data]
+        mese = calendar.month_name[lezione.data.month]
 
         documento = Ord_Mast.objects.create(
             DONUMORD=numero,
@@ -985,6 +1101,7 @@ def _crea_ricevuta_alunno(
                 DOPREZZO=_ricavo_mensile_alunno(
                     corso,
                     riepilogo['durata_minuti_alunno'],
+                    riepilogo['prezzo_alunno'],
                 ),
                 DODESART=str(corso),
             )
@@ -1020,6 +1137,380 @@ def _redirect_fatturazione(anno, mese, causale, alunno=None, corso=None):
         parametri['corso'] = corso.pk
     query = urlencode(parametri)
     return redirect(f'{reverse("corsi:fatturazione")}?{query}')
+
+
+def _crea_ricevuta_iscrizione(iscrizione, causale, utente):
+    with transaction.atomic():
+        iscrizione = get_object_or_404(
+            Alunno.objects.select_for_update().select_related(
+                'alunno',
+                'corso',
+            ),
+            pk=iscrizione.pk,
+        )
+        if iscrizione.ricevuta_iscrizione_id:
+            raise ValidationError(
+                'L’iscrizione ha già una ricevuta fiscale collegata.'
+            )
+
+        azienda = Azienda.get_azienda()
+        if azienda.AZARTINS_id is None:
+            raise ValidationError(
+                'Configurare in Azienda l’articolo per l’iscrizione.'
+            )
+        if azienda.AZARTTES_id is None:
+            raise ValidationError(
+                'Configurare in Azienda l’articolo per la tessera.'
+            )
+
+        data_documento = timezone.localtime(timezone.now()).date()
+        serie = str(data_documento.year)
+        numero = 0
+        if causale.CDNUMAUT == 1:
+            numeri_esistenti = Ord_Mast.objects.select_for_update().filter(
+                DOALFORD=serie,
+                DOCODCAU__CDTIPDOC='RF',
+                DONUMORD__isnull=False,
+            ).values_list('DONUMORD', flat=True)
+            numero = max(numeri_esistenti, default=0) + 1
+        else:
+            serie = None
+
+        documento = Ord_Mast.objects.create(
+            DONUMORD=numero,
+            DOALFORD=serie,
+            DODATORD=data_documento,
+            DOCODCAU=causale,
+            DOCODPAG=causale.CDPAGDEF or Settings.get_settings().AZPAGDEF,
+            DOCODINT=iscrizione.alunno,
+            DOCODUTE=utente,
+            DOTIPDOC='RF',
+            DONOTE=f'Iscrizione al corso {iscrizione.corso}',
+            slug=slugify(
+                f'iscrizione-{iscrizione.pk}-{data_documento}-{numero}'
+            ),
+        )
+        Ord_dett.objects.create(
+            DOCODICE=documento,
+            DONUMRIG=1,
+            DOCODART=azienda.AZARTINS,
+            DOQTAUM1=Decimal('1'),
+            DOPREZZO=iscrizione.corso.prezzo_iscrizione,
+            DODESART=f'Quota iscrizione - {iscrizione.corso}',
+        )
+        Ord_dett.objects.create(
+            DOCODICE=documento,
+            DONUMRIG=2,
+            DOCODART=azienda.AZARTTES,
+            DOQTAUM1=Decimal('1'),
+            DOPREZZO=azienda.AZARTTES.ARPREZZO or Decimal('0'),
+            DODESART='Tessera associativa',
+        )
+
+        form_post_salvataggio = forms.Form()
+        finalizza_documento(
+            documento,
+            form_post_salvataggio,
+            acconto=documento.DOIMPACC,
+            finanziamento=documento.DOIMPFIN,
+        )
+        if form_post_salvataggio.errors:
+            raise ValidationError(
+                list(form_post_salvataggio.non_field_errors())
+            )
+
+        iscrizione.ricevuta_iscrizione = documento
+        iscrizione.save(update_fields=['ricevuta_iscrizione'])
+
+    return documento
+
+
+def _redirect_iscrizioni(corso, causale):
+    query = urlencode({
+        'corso': corso.pk,
+        'causale': causale.pk,
+    })
+    return redirect(f'{reverse("corsi:iscrizioni")}?{query}')
+
+
+def _elimina_ricevute_iscrizione(request, iscrizione_ids):
+    form = IscrizioniForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, 'Selezionare un corso e una causale validi.')
+        return redirect('corsi:iscrizioni')
+
+    corso = form.cleaned_data['corso']
+    causale = form.cleaned_data['causale']
+    redirect_response = _redirect_iscrizioni(corso, causale)
+
+    if not iscrizione_ids:
+        messages.error(
+            request,
+            'Selezionare almeno una ricevuta di iscrizione da eliminare.',
+        )
+        return redirect_response
+    if any(not iscrizione_id.isdecimal() for iscrizione_id in iscrizione_ids):
+        messages.error(request, 'La selezione delle iscrizioni non è valida.')
+        return redirect_response
+
+    iscrizione_ids = {int(iscrizione_id) for iscrizione_id in iscrizione_ids}
+    with transaction.atomic():
+        iscrizioni = list(
+            Alunno.objects.select_for_update(of=('self',))
+            .filter(
+                pk__in=iscrizione_ids,
+                corso=corso,
+                ricevuta_iscrizione__isnull=False,
+                ricevuta_iscrizione__DOTIPDOC='RF',
+                ricevuta_iscrizione__lezioni_fatturate__isnull=True,
+            )
+            .select_related('ricevuta_iscrizione', 'alunno')
+        )
+        if len(iscrizioni) != len(iscrizione_ids):
+            messages.error(
+                request,
+                'Una o più ricevute selezionate non appartengono alle '
+                'iscrizioni visualizzate o sono collegate a lezioni.',
+            )
+            return redirect_response
+
+        documenti_ids = {
+            iscrizione.ricevuta_iscrizione_id for iscrizione in iscrizioni
+        }
+        iscrizioni_esterni = Alunno.objects.filter(
+            ricevuta_iscrizione_id__in=documenti_ids,
+        ).exclude(pk__in=iscrizione_ids)
+        if iscrizioni_esterni.exists():
+            messages.error(
+                request,
+                'Una o più ricevute sono collegate anche ad altre iscrizioni.',
+            )
+            return redirect_response
+
+        documenti = list(
+            Ord_Mast.objects.select_for_update(of=('self',)).filter(
+                pk__in=documenti_ids,
+                DOTIPDOC='RF',
+                lezioni_fatturate__isnull=True,
+            )
+        )
+        if len(documenti) != len(documenti_ids):
+            messages.error(
+                request,
+                'Una o più ricevute non sono più disponibili o sono '
+                'collegate a lezioni.',
+            )
+            return redirect_response
+
+        for documento in documenti:
+            documento.delete()
+
+    messages.success(
+        request,
+        f'Eliminate {len(documenti_ids)} ricevute di iscrizione.',
+    )
+    return redirect_response
+
+
+@login_required
+@require_http_methods(['GET'])
+def genera_iscrizioni(request):
+    form = IscrizioniForm(request.GET or None)
+    righe_iscrizioni = []
+    configurazione_mancante = None
+    numero_generabili = 0
+    prezzo_tessera = None
+    iscrizioni_eliminabili = set()
+    if form.is_valid():
+        corso = form.cleaned_data['corso']
+        causale = form.cleaned_data['causale']
+        iscrizioni = Alunno.objects.filter(corso=corso).select_related(
+            'alunno',
+            'corso',
+            'ricevuta_iscrizione',
+        ).order_by('alunno__NORAGSOC', 'pk')
+        try:
+            azienda = Azienda.get_azienda()
+        except Azienda.DoesNotExist:
+            azienda = None
+            configurazione_mancante = (
+                'Configurare i dati aziendali prima di generare le ricevute.'
+            )
+        if azienda is not None and (
+            azienda.AZARTINS_id is None or azienda.AZARTTES_id is None
+        ):
+            configurazione_mancante = (
+                'Configurare in Azienda gli articoli per iscrizione e tessera.'
+            )
+        elif azienda is not None:
+            prezzo_tessera = azienda.AZARTTES.ARPREZZO or Decimal('0.00')
+
+        iscrizioni = list(iscrizioni)
+        iscrizioni_eliminabili = set(
+            Alunno.objects.filter(
+                pk__in=[iscrizione.pk for iscrizione in iscrizioni],
+                ricevuta_iscrizione__DOTIPDOC='RF',
+                ricevuta_iscrizione__lezioni_fatturate__isnull=True,
+            ).values_list('pk', flat=True)
+        )
+        ricevute_ids = [
+            iscrizione.ricevuta_iscrizione_id
+            for iscrizione in iscrizioni
+            if iscrizione.ricevuta_iscrizione_id
+        ]
+        scadenze_per_documento = {}
+        for scadenza in Scadenze.objects.filter(
+            SCCODICE_id__in=ricevute_ids
+        ).order_by('SCNUMSCA', 'pk'):
+            scadenze_per_documento.setdefault(
+                scadenza.SCCODICE_id, []
+            ).append(scadenza)
+        totali_per_documento = {
+            riga['DOCODICE_id']: riga['totale'] or Decimal('0.00')
+            for riga in Ord_dett.objects.filter(
+                DOCODICE_id__in=ricevute_ids
+            ).values('DOCODICE_id').annotate(
+                totale=Sum(F('DOPREZZO') * F('DOQTAUM1'))
+            )
+        }
+
+        for iscrizione in iscrizioni:
+            documento_id = iscrizione.ricevuta_iscrizione_id
+            scadenze = scadenze_per_documento.get(documento_id, [])
+            pagato = bool(scadenze) and all(
+                scadenza.SCPAGATA == 'S' for scadenza in scadenze
+            )
+            generabile = documento_id is None and configurazione_mancante is None
+            numero_generabili += generabile
+            righe_iscrizioni.append({
+                'iscrizione': iscrizione,
+                'documento_id': documento_id,
+                'eliminabile': iscrizione.pk in iscrizioni_eliminabili,
+                'totale_documento': (
+                    totali_per_documento.get(documento_id)
+                    if documento_id
+                    else (
+                        iscrizione.corso.prezzo_iscrizione + prezzo_tessera
+                        if prezzo_tessera is not None
+                        else None
+                    )
+                ),
+                'scadenze': scadenze,
+                'scadenze_non_pagate': [
+                    scadenza for scadenza in scadenze
+                    if scadenza.SCPAGATA != 'S'
+                ],
+                'pagato': pagato,
+                'generabile': generabile,
+            })
+
+    return render(
+        request,
+        'Corsi/iscrizioni.html',
+        {
+            'form': form,
+            'righe_iscrizioni': righe_iscrizioni,
+            'numero_generabili': numero_generabili,
+            'numero_eliminabili': len(iscrizioni_eliminabili),
+            'configurazione_mancante': configurazione_mancante,
+            'prezzo_tessera': prezzo_tessera,
+        },
+    )
+
+
+@login_required
+@require_POST
+def genera_ricevuta_iscrizione(request, alunno_corso_id):
+    form = IscrizioniForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, 'Selezionare un corso e una causale validi.')
+        return redirect('corsi:iscrizioni')
+
+    corso = form.cleaned_data['corso']
+    causale = form.cleaned_data['causale']
+    iscrizione = get_object_or_404(
+        Alunno,
+        pk=alunno_corso_id,
+        corso=corso,
+    )
+    try:
+        documento = _crea_ricevuta_iscrizione(
+            iscrizione,
+            causale,
+            request.user,
+        )
+    except ValidationError as errore:
+        messages.error(request, ' '.join(errore.messages))
+    else:
+        messages.success(
+            request,
+            f'Ricevuta fiscale {documento.pk} creata per {iscrizione.alunno}.',
+        )
+
+    return _redirect_iscrizioni(corso, causale)
+
+
+@login_required
+@require_POST
+def elimina_ricevuta_iscrizione(request, alunno_corso_id):
+    return _elimina_ricevute_iscrizione(
+        request,
+        [str(alunno_corso_id)],
+    )
+
+
+@login_required
+@require_POST
+def elimina_ricevute_iscrizione_selezionate(request):
+    return _elimina_ricevute_iscrizione(
+        request,
+        request.POST.getlist('iscrizioni_ids'),
+    )
+
+
+@login_required
+@require_POST
+def genera_tutte_ricevute_iscrizione(request):
+    form = IscrizioniForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, 'Selezionare un corso e una causale validi.')
+        return redirect('corsi:iscrizioni')
+
+    corso = form.cleaned_data['corso']
+    causale = form.cleaned_data['causale']
+    iscrizioni = Alunno.objects.filter(
+        corso=corso,
+        ricevuta_iscrizione__isnull=True,
+    ).select_related('alunno').order_by('alunno__NORAGSOC', 'pk')
+
+    create_count = 0
+    errori = []
+    for iscrizione in iscrizioni.iterator():
+        try:
+            _crea_ricevuta_iscrizione(
+                iscrizione,
+                causale,
+                request.user,
+            )
+        except ValidationError as errore:
+            errori.append(f'{iscrizione.alunno}: {" ".join(errore.messages)}')
+        else:
+            create_count += 1
+
+    if create_count:
+        messages.success(
+            request,
+            f'Generate {create_count} ricevute di iscrizione.',
+        )
+    if errori:
+        messages.warning(
+            request,
+            f'Non generate {len(errori)} ricevute: ' + '; '.join(errori),
+        )
+    elif not create_count:
+        messages.info(request, 'Non ci sono ricevute di iscrizione da generare.')
+
+    return _redirect_iscrizioni(corso, causale)
 
 
 @login_required

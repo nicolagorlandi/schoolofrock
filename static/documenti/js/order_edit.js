@@ -9,6 +9,7 @@
             success: function (data) {
                 $( "input[name$='"+data.prefisso+"DODESART']" )[0].value=data.ARDESCRI;                
                 $( "input[name$='"+data.prefisso+"DOPREZZO']" )[0].value=data.ARPREZZO;
+                $("select[name$='"+data.prefisso+"DOCODIVA']").val(data.ARCODIVA).trigger('change');
                 // se quantita a 0 la metto a 1
                 var qta = $( "input[name$='"+data.prefisso+"DOQTAUM1']" )[0].value;
                 if (qta==="0") 

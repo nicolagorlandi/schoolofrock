@@ -11,6 +11,7 @@ from django.urls import reverse
 from PaNet1Project import settings
 from documenti.models import (
     Articoli,
+    Azienda,
     Causdocu,
     Codiciva,
     Nominativi,
@@ -170,6 +171,8 @@ class CalendarioLezioniTests(TestCase):
         self.assertEqual(str(self.corso), 'Chitarra Clapton')
 
     def test_updating_course_saves_its_description(self):
+        self.corso.prezzo_iscrizione = Decimal('25.00')
+        self.corso.save(update_fields=['prezzo_iscrizione'])
         response = self.client.post(
             reverse('corsi:modifica', args=[self.corso.pk]),
             {
@@ -190,6 +193,7 @@ class CalendarioLezioniTests(TestCase):
                 'alunni-MAX_NUM_FORMS': '1000',
                 'alunni-0-id': str(self.riga_alunno.pk),
                 'alunni-0-alunno': self.alunno_nominativo.pk,
+                'alunni-0-prezzo': '55.50',
                 'alunni-0-giorno_settimana': 'lunedi',
                 'alunni-0-ora_inizio': '17:00',
                 'alunni-0-durata_minuti': '45',
@@ -201,6 +205,9 @@ class CalendarioLezioniTests(TestCase):
         self.assertEqual(self.corso.descrizione, 'Chitarra acustica')
         self.assertEqual(self.corso.note, 'Lezione di prova\nPortare il libro')
         self.assertEqual(self.corso.articolo, self.articolo)
+        self.assertEqual(self.corso.prezzo_iscrizione, Decimal('25.00'))
+        self.riga_alunno.refresh_from_db()
+        self.assertEqual(self.riga_alunno.prezzo, Decimal('55.50'))
         self.assertTrue(self.corso.di_gruppo)
         self.assertTrue(self.corso.calcoloCosto)
 
@@ -255,6 +262,7 @@ class CalendarioLezioniTests(TestCase):
             'Chitarra',
         )
         self.assertContains(response, 'name="note"')
+        self.assertContains(response, 'name="alunni-0-prezzo"')
         self.assertContains(response, 'rows="4"')
 
     def test_new_student_duration_defaults_to_course_duration(self):
@@ -1128,6 +1136,177 @@ class CalendarioLezioniTests(TestCase):
         self.assertEqual(righe[0]['alunno'], self.alunno_nominativo)
 
     @patch('Corsi.views.Settings.get_settings')
+    def test_billing_uses_student_price_in_preview_and_receipt(self, get_settings):
+        get_settings.return_value = SimpleNamespace(AZPAGDEF=self.pagamento)
+        self.riga_alunno.prezzo = Decimal('42.75')
+        self.riga_alunno.save(update_fields=['prezzo'])
+        dati_fatturazione = {
+            'anno': '2026',
+            'mese': '10',
+            'causale': self.causale.pk,
+        }
+
+        response = self.client.get(
+            reverse('corsi:fatturazione'),
+            dati_fatturazione,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        riepilogo = response.context['righe_fatturazione'][0]
+        self.assertEqual(riepilogo['totale'], Decimal('42.75'))
+        self.assertEqual(riepilogo['corsi'][0]['importo'], Decimal('42.75'))
+
+        response = self.client.post(
+            reverse(
+                'corsi:genera-ricevuta',
+                args=[self.alunno_nominativo.pk],
+            ),
+            dati_fatturazione,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        documento = Ord_Mast.objects.get(DOCODCAU=self.causale)
+        riga_ricevuta = Ord_dett.objects.get(DOCODICE=documento)
+        self.assertEqual(riga_ricevuta.DOPREZZO, Decimal('42.75'))
+
+    def test_billing_can_delete_receipt_and_unlink_its_lessons(self):
+        documento = Ord_Mast.objects.create(
+            DODATORD=date(2026, 10, 10),
+            DOCODCAU=self.causale,
+            DOCODINT=self.alunno_nominativo,
+            DOCODUTE=self.user,
+            DOTIPDOC='RF',
+            slug='ricevuta-da-eliminare',
+        )
+        self.lezione.documento_fatturazione = documento
+        self.lezione.save(update_fields=['documento_fatturazione'])
+        Ord_dett.objects.create(
+            DOCODICE=documento,
+            DONUMRIG=1,
+            DOCODART=self.articolo,
+            DOQTAUM1='1',
+            DOPREZZO='100.00',
+        )
+
+        response = self.client.post(
+            reverse('corsi:elimina-ricevuta', args=[documento.pk]),
+            {'anno': '2026', 'mese': '10', 'causale': self.causale.pk},
+        )
+
+        self.assertRedirects(
+            response,
+            reverse('corsi:fatturazione')
+            + f'?anno=2026&mese=10&causale={self.causale.pk}',
+        )
+        self.assertFalse(Ord_Mast.objects.filter(pk=documento.pk).exists())
+        self.assertFalse(Ord_dett.objects.filter(DOCODICE=documento).exists())
+        self.lezione.refresh_from_db()
+        self.assertIsNone(self.lezione.documento_fatturazione_id)
+
+    def test_billing_can_bulk_delete_selected_receipts_only(self):
+        altro_nominativo = Nominativi.objects.create(
+            NOCODICE='CAL-STUDENT-2',
+            NORAGSOC='Secondo alunno',
+            NOCODNOM=settings.CCATCLI,
+        )
+        altra_riga = Alunno.objects.create(
+            corso=self.corso,
+            alunno=altro_nominativo,
+            giorno_settimana='martedi',
+            ora_inizio='18:00',
+            durata_minuti=45,
+        )
+        altra_lezione = Lezioni.objects.create(
+            alunno=altra_riga,
+            data=date(2026, 10, 13),
+            data_ricorrenza=date(2026, 10, 13),
+        )
+        documenti = []
+        for indice, (nominativo, lezione) in enumerate(
+            (
+                (self.alunno_nominativo, self.lezione),
+                (altro_nominativo, altra_lezione),
+            ),
+            start=1,
+        ):
+            documento = Ord_Mast.objects.create(
+                DODATORD=date(2026, 10, 10),
+                DOCODCAU=self.causale,
+                DOCODINT=nominativo,
+                DOCODUTE=self.user,
+                DOTIPDOC='RF',
+                slug=f'ricevuta-multipla-{indice}',
+            )
+            lezione.documento_fatturazione = documento
+            lezione.save(update_fields=['documento_fatturazione'])
+            documenti.append(documento)
+        altra_ricevuta = Ord_Mast.objects.create(
+            DODATORD=date(2026, 10, 10),
+            DOCODCAU=self.causale,
+            DOCODINT=self.alunno_nominativo,
+            DOCODUTE=self.user,
+            DOTIPDOC='RF',
+            slug='ricevuta-non-collegata',
+        )
+
+        response = self.client.get(
+            reverse('corsi:fatturazione'),
+            {'anno': '2026', 'mese': '10', 'causale': self.causale.pk},
+        )
+
+        self.assertContains(response, 'elimina-ricevute-form')
+        self.assertContains(response, 'Seleziona tutte le ricevute')
+        response = self.client.post(
+            reverse('corsi:elimina-ricevute-selezionate'),
+            {
+                'anno': '2026',
+                'mese': '10',
+                'causale': self.causale.pk,
+                'documenti_ids': [
+                    str(documento.pk)
+                    for documento in (*documenti, altra_ricevuta)
+                ],
+            },
+        )
+
+        self.assertEqual(
+            Ord_Mast.objects.filter(
+                pk__in=[
+                    documento.pk
+                    for documento in (*documenti, altra_ricevuta)
+                ]
+            ).count(),
+            3,
+        )
+        response = self.client.post(
+            reverse('corsi:elimina-ricevute-selezionate'),
+            {
+                'anno': '2026',
+                'mese': '10',
+                'causale': self.causale.pk,
+                'documenti_ids': [str(documento.pk) for documento in documenti],
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse('corsi:fatturazione')
+            + f'?anno=2026&mese=10&causale={self.causale.pk}',
+        )
+        self.assertFalse(
+            Ord_Mast.objects.filter(
+                pk__in=[documento.pk for documento in documenti]
+            ).exists()
+        )
+        self.assertTrue(
+            Ord_Mast.objects.filter(pk=altra_ricevuta.pk).exists()
+        )
+        self.lezione.refresh_from_db()
+        altra_lezione.refresh_from_db()
+        self.assertIsNone(self.lezione.documento_fatturazione_id)
+        self.assertIsNone(altra_lezione.documento_fatturazione_id)
+
+    @patch('Corsi.views.Settings.get_settings')
     def test_billing_creates_receipt_lines_and_links_all_month_lessons(
         self,
         get_settings,
@@ -1414,6 +1593,74 @@ class CalendarioLezioniTests(TestCase):
         )
         self.assertContains(response, 'Pagato')
 
+    def test_billing_settles_due_dates_without_reloading_the_page(self):
+        documento = Ord_Mast.objects.create(
+            DODATORD=date(2026, 10, 10),
+            DOCODCAU=self.causale,
+            DOCODINT=self.alunno_nominativo,
+            DOCODUTE=self.user,
+            DOTIPDOC='RF',
+            slug='ricevuta-test-saldo-ajax',
+        )
+        self.lezione.documento_fatturazione = documento
+        self.lezione.save(update_fields=['documento_fatturazione'])
+        Ord_dett.objects.create(
+            DOCODICE=documento,
+            DONUMRIG=1,
+            DOCODART=self.articolo,
+            DOQTAUM1='1',
+            DOPREZZO='100.00',
+        )
+        prima_scadenza = Scadenze.objects.create(
+            SCCODICE=documento,
+            SCNUMSCA=1,
+            SCIMPSCA='50.00',
+            SCPAGATA='N',
+        )
+        seconda_scadenza = Scadenze.objects.create(
+            SCCODICE=documento,
+            SCNUMSCA=2,
+            SCIMPSCA='50.00',
+            SCPAGATA='N',
+        )
+        response = self.client.get(
+            reverse('corsi:fatturazione'),
+            {'anno': '2026', 'mese': '10', 'causale': self.causale.pk},
+        )
+        self.assertContains(response, 'js-salda-scadenza')
+        self.assertContains(response, 'totale-documenti-pagati')
+
+        headers = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
+        response = self.client.post(
+            reverse('salda_scadenza', args=[prima_scadenza.pk]),
+            **headers,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            'success': True,
+            'documento_pagato': False,
+        })
+        self.assertEqual(
+            Scadenze.objects.get(pk=prima_scadenza.pk).SCPAGATA,
+            'S',
+        )
+        self.assertEqual(
+            Scadenze.objects.get(pk=seconda_scadenza.pk).SCPAGATA,
+            'N',
+        )
+
+        response = self.client.post(
+            reverse('salda_scadenza', args=[seconda_scadenza.pk]),
+            **headers,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            'success': True,
+            'documento_pagato': True,
+        })
+
     def test_deleting_receipt_clears_its_lesson_reference(self):
         documento = Ord_Mast.objects.create(
             DODATORD=date(2026, 10, 10),
@@ -1431,6 +1678,242 @@ class CalendarioLezioniTests(TestCase):
         self.lezione.refresh_from_db()
         self.assertIsNone(self.lezione.documento_fatturazione_id)
         self.assertTrue(Lezioni.objects.filter(pk=self.lezione.pk).exists())
+
+    def test_enrollment_receipt_contains_registration_and_card_lines(self):
+        articolo_iscrizione = Articoli.objects.create(
+            ARCODICE='CAL-INS',
+            ARDESCRI='Quota iscrizione',
+            ARCODIVA=self.articolo.ARCODIVA,
+            ARPREZZO='0.00',
+        )
+        articolo_tessera = Articoli.objects.create(
+            ARCODICE='CAL-TES',
+            ARDESCRI='Tessera associativa',
+            ARCODIVA=self.articolo.ARCODIVA,
+            ARPREZZO='12.50',
+        )
+        azienda = Azienda.objects.order_by('NOME').first()
+        if azienda is None:
+            azienda = Azienda.objects.create(NOME='Scuola test')
+        azienda.AZARTINS = articolo_iscrizione
+        azienda.AZARTTES = articolo_tessera
+        azienda.save(update_fields=['AZARTINS', 'AZARTTES'])
+        self.corso.prezzo_iscrizione = Decimal('25.00')
+        self.corso.save(update_fields=['prezzo_iscrizione'])
+        self.causale.CDPAGDEF = self.pagamento
+        self.causale.save(update_fields=['CDPAGDEF'])
+
+        filtri = {
+            'corso': str(self.corso.pk),
+            'causale': self.causale.pk,
+        }
+        response = self.client.get(reverse('corsi:iscrizioni'), filtri)
+        self.assertEqual(
+            response.context['numero_generabili'],
+            1,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Genera tutte le ricevute mancanti')
+
+        response = self.client.post(
+            reverse('corsi:genera-tutte-ricevute-iscrizione'),
+            filtri,
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.riga_alunno.refresh_from_db()
+        documento = self.riga_alunno.ricevuta_iscrizione
+        self.assertIsNotNone(documento)
+        righe = list(
+            Ord_dett.objects.filter(DOCODICE=documento).order_by('DONUMRIG')
+        )
+        self.assertEqual(len(righe), 2)
+        self.assertEqual(righe[0].DOCODART, articolo_iscrizione)
+        self.assertEqual(righe[0].DOPREZZO, Decimal('25.00'))
+        self.assertEqual(righe[1].DOCODART, articolo_tessera)
+        self.assertEqual(righe[1].DOPREZZO, Decimal('12.50'))
+        self.assertEqual(
+            Scadenze.objects.get(SCCODICE=documento).SCIMPSCA,
+            Decimal('45.75'),
+        )
+        self.assertContains(response, 'Apri ricevuta')
+        self.assertContains(
+            response,
+            reverse(
+                'edit_ordine',
+                kwargs={
+                    'order_id': documento.pk,
+                    'TipoDocumentoSelezionato': 'RF',
+                },
+            ),
+        )
+        self.assertContains(
+            response,
+            reverse('stampaDocumento', kwargs={'pk': documento.pk}),
+        )
+        self.assertContains(response, 'Salda')
+
+        Scadenze.objects.filter(SCCODICE=documento).update(SCPAGATA='S')
+        response = self.client.get(reverse('corsi:iscrizioni'), filtri)
+        self.assertContains(response, 'Sì')
+        self.assertNotContains(response, 'class="btn btn-sm btn-success"')
+
+    def test_enrollment_receipt_can_be_deleted(self):
+        documento = Ord_Mast.objects.create(
+            DODATORD=date(2026, 10, 10),
+            DOCODCAU=self.causale,
+            DOCODINT=self.alunno_nominativo,
+            DOCODUTE=self.user,
+            DOTIPDOC='RF',
+            slug='ricevuta-iscrizione-da-eliminare',
+        )
+        self.riga_alunno.ricevuta_iscrizione = documento
+        self.riga_alunno.save(update_fields=['ricevuta_iscrizione'])
+        Scadenze.objects.create(
+            SCCODICE=documento,
+            SCNUMSCA=1,
+            SCIMPSCA='20.00',
+            SCPAGATA='N',
+        )
+        filtri = {
+            'corso': str(self.corso.pk),
+            'causale': self.causale.pk,
+        }
+        response = self.client.get(reverse('corsi:iscrizioni'), filtri)
+        self.assertContains(response, 'Elimina ricevuta')
+        self.assertContains(response, 'Elimina ricevute selezionate')
+
+        response = self.client.post(
+            reverse(
+                'corsi:elimina-ricevuta-iscrizione',
+                args=[self.riga_alunno.pk],
+            ),
+            filtri,
+        )
+
+        self.assertRedirects(
+            response,
+            reverse('corsi:iscrizioni')
+            + f'?corso={self.corso.pk}&causale={self.causale.pk}',
+        )
+        self.assertFalse(Ord_Mast.objects.filter(pk=documento.pk).exists())
+        self.assertFalse(Scadenze.objects.filter(SCCODICE=documento).exists())
+        self.riga_alunno.refresh_from_db()
+        self.assertIsNone(self.riga_alunno.ricevuta_iscrizione_id)
+
+    def test_enrollment_receipts_can_be_bulk_deleted(self):
+        altro_nominativo = Nominativi.objects.create(
+            NOCODICE='CAL-STUDENT-3',
+            NORAGSOC='Secondo alunno',
+            NOCODNOM=settings.CCATCLI,
+        )
+        altra_iscrizione = Alunno.objects.create(
+            corso=self.corso,
+            alunno=altro_nominativo,
+            giorno_settimana='martedi',
+            ora_inizio='18:00',
+            durata_minuti=45,
+        )
+        iscrizioni = (self.riga_alunno, altra_iscrizione)
+        documenti = []
+        for indice, iscrizione in enumerate(iscrizioni, start=1):
+            documento = Ord_Mast.objects.create(
+                DODATORD=date(2026, 10, 10),
+                DOCODCAU=self.causale,
+                DOCODINT=iscrizione.alunno,
+                DOCODUTE=self.user,
+                DOTIPDOC='RF',
+                slug=f'ricevuta-iscrizione-multipla-{indice}',
+            )
+            iscrizione.ricevuta_iscrizione = documento
+            iscrizione.save(update_fields=['ricevuta_iscrizione'])
+            documenti.append(documento)
+        filtri = {
+            'corso': str(self.corso.pk),
+            'causale': self.causale.pk,
+        }
+        altro_corso = Corso.objects.create(
+            descrizione='Pianoforte',
+            insegnante=self.corso.insegnante,
+            prezzo='80.00',
+            costo='40.00',
+            data_inizio=date(2026, 10, 1),
+            data_fine=date(2026, 12, 31),
+        )
+
+        response = self.client.post(
+            reverse('corsi:elimina-ricevute-iscrizione-selezionate'),
+            {
+                'corso': str(altro_corso.pk),
+                'causale': self.causale.pk,
+                'iscrizioni_ids': [
+                    str(iscrizioni[0].pk)
+                ],
+            },
+        )
+        self.assertEqual(
+            Ord_Mast.objects.filter(
+                pk__in=[documento.pk for documento in documenti]
+            ).count(),
+            2,
+        )
+
+        response = self.client.post(
+            reverse('corsi:elimina-ricevute-iscrizione-selezionate'),
+            {
+                **filtri,
+                'iscrizioni_ids': [
+                    str(iscrizione.pk) for iscrizione in iscrizioni
+                ],
+            },
+        )
+        self.assertRedirects(
+            response,
+            reverse('corsi:iscrizioni')
+            + f'?corso={self.corso.pk}&causale={self.causale.pk}',
+        )
+        self.assertFalse(
+            Ord_Mast.objects.filter(
+                pk__in=[documento.pk for documento in documenti]
+            ).exists()
+        )
+        for iscrizione in iscrizioni:
+            iscrizione.refresh_from_db()
+            self.assertIsNone(iscrizione.ricevuta_iscrizione_id)
+
+    def test_enrollment_receipt_linked_to_lessons_cannot_be_deleted(self):
+        documento = Ord_Mast.objects.create(
+            DODATORD=date(2026, 10, 10),
+            DOCODCAU=self.causale,
+            DOCODINT=self.alunno_nominativo,
+            DOCODUTE=self.user,
+            DOTIPDOC='RF',
+            slug='ricevuta-iscrizione-collegata-lezione',
+        )
+        self.riga_alunno.ricevuta_iscrizione = documento
+        self.riga_alunno.save(update_fields=['ricevuta_iscrizione'])
+        self.lezione.documento_fatturazione = documento
+        self.lezione.save(update_fields=['documento_fatturazione'])
+
+        response = self.client.post(
+            reverse(
+                'corsi:elimina-ricevuta-iscrizione',
+                args=[self.riga_alunno.pk],
+            ),
+            {'corso': self.corso.pk, 'causale': self.causale.pk},
+        )
+
+        self.assertRedirects(
+            response,
+            reverse('corsi:iscrizioni')
+            + f'?corso={self.corso.pk}&causale={self.causale.pk}',
+        )
+        self.assertTrue(Ord_Mast.objects.filter(pk=documento.pk).exists())
+        self.riga_alunno.refresh_from_db()
+        self.lezione.refresh_from_db()
+        self.assertEqual(self.riga_alunno.ricevuta_iscrizione_id, documento.pk)
+        self.assertEqual(self.lezione.documento_fatturazione_id, documento.pk)
 
     def test_monthly_attendance_report_renders_without_lessons(self):
         response = self.client.get(

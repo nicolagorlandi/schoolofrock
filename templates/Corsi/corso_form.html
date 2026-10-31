@@ -31,6 +31,7 @@
         <div class="col-md-2 mb-3">{{ form.data_fine|bootstrap }}</div>
         <div class="col-md-1 mb-3">{{ form.durata_minuti|bootstrap }}</div>
         <div class="col-md-1 mb-3">{{ form.prezzo|bootstrap }}</div>
+        <div class="col-md-2 mb-3">{{ form.prezzo_iscrizione|bootstrap }}</div>
         <div class="col-md-1 mb-3">
             <label class="form-label" for="{{ form.di_gruppo.id_for_label }}">{{ form.di_gruppo.label }}</label>
             <div class="form-check">{{ form.di_gruppo }}</div>
@@ -48,6 +49,12 @@
     <div class="mb-3">{{ form.note|bootstrap }}</div>
 
     <h2 class="h4 mt-4">{% trans "Alunni e orari" %}</h2>
+    {% if object.pk %}
+        <a class="btn btn-outline-primary btn-sm mb-3"
+           href="{% url 'corsi:iscrizioni' %}?corso={{ object.pk }}">
+            {% trans "Genera iscrizioni e apri ricevute" %}
+        </a>
+    {% endif %}
     {% if formset.non_form_errors %}
         <div class="alert alert-danger">{{ formset.non_form_errors }}</div>
     {% endif %}
@@ -58,9 +65,11 @@
             <thead>
                 <tr>
                     <th>{% trans "Alunno" %}</th>
+                    <th>{% trans "Prezzo" %}</th>
                     <th>{% trans "Giorno" %}</th>
                     <th>{% trans "Ora inizio" %}</th>
                     <th>{% trans "Durata (minuti)" %}</th>
+                    <th>{% trans "Ricevuta iscrizione" %}</th>
                     <th>{% trans "Elimina" %}</th>
                 </tr>
             </thead>
@@ -73,6 +82,10 @@
                         {% for error in riga.alunno.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
                     </td>
                     <td>
+                        {{ riga.prezzo }}
+                        {% for error in riga.prezzo.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                    </td>
+                    <td>
                         {{ riga.giorno_settimana }}
                         {% for error in riga.giorno_settimana.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
                     </td>
@@ -83,6 +96,20 @@
                     <td>
                         {{ riga.durata_minuti }}
                         {% for error in riga.durata_minuti.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                    </td>
+                    <td class="text-nowrap">
+                        {% if riga.instance.ricevuta_iscrizione_id %}
+                            <a class="btn btn-sm btn-outline-primary"
+                               href="{% url 'edit_ordine' order_id=riga.instance.ricevuta_iscrizione_id TipoDocumentoSelezionato='RF' %}">
+                                {% trans "Apri ricevuta" %}
+                            </a>
+                            <a class="btn btn-sm btn-info fa-solid fa-print"
+                               href="{% url 'stampaDocumento' pk=riga.instance.ricevuta_iscrizione_id %}"
+                               title="{% trans 'Stampa ricevuta' %}"
+                               aria-label="{% trans 'Stampa ricevuta' %}"></a>
+                        {% else %}
+                            —
+                        {% endif %}
                     </td>
                     <td>
                         {% if riga.DELETE %}{{ riga.DELETE }}{% endif %}
@@ -98,9 +125,11 @@
         <tr>
             {% for hidden in formset.empty_form.hidden_fields %}{{ hidden }}{% endfor %}
             <td>{{ formset.empty_form.alunno }}</td>
+            <td>{{ formset.empty_form.prezzo }}</td>
             <td>{{ formset.empty_form.giorno_settimana }}</td>
             <td>{{ formset.empty_form.ora_inizio }}</td>
             <td>{{ formset.empty_form.durata_minuti }}</td>
+            <td>—</td>
             <td>{{ formset.empty_form.DELETE }}</td>
         </tr>
     </template>

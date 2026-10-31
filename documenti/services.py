@@ -1,10 +1,78 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_EVEN
 
 from django.db.models import Max, Sum
 
 from PaNet1Project import settings
 
-from .models import Codiciva, MODPAGAM, Rivadett, Scadenze
+from .models import (
+    Azienda,
+    Codiciva,
+    MODPAGAM,
+    Ord_dett,
+    Rivadett,
+    Scadenze,
+)
+
+
+TIPI_DOCUMENTO_CON_CASSA = {'FA', 'NC', 'FV', 'NV', 'OA', 'OV'}
+
+
+def aggiorna_riga_cassa(documento):
+    Ord_dett.objects.filter(
+        DOCODICE=documento,
+        DORIGCASSA=True,
+    ).delete()
+
+    intestatario = documento.DOCODINT
+    percentuale_documento = documento.DO_CASSA or Decimal('0')
+    if (
+        documento.DOTIPDOC not in TIPI_DOCUMENTO_CON_CASSA
+        or intestatario is None
+        or intestatario.NOCASSA is None
+        or intestatario.NOCASSA <= 0
+        or percentuale_documento <= 0
+    ):
+        return
+
+    articolo = Azienda.get_azienda().AZCODCAS
+    if articolo is None:
+        return
+
+    riepiloghi, _ = documento.totale_fattura()
+    base_imponibile = sum(
+        (
+            riepilogo.imponibile
+            for riepilogo in riepiloghi
+        ),
+        Decimal('0'),
+    )
+    importo_cassa = (
+        base_imponibile
+        * intestatario.NOCASSA
+        / Decimal('100')
+        * percentuale_documento
+        / Decimal('100')
+    ).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
+    if importo_cassa <= 0:
+        return
+
+    ultimo_numero_riga = Ord_dett.objects.filter(
+        DOCODICE=documento,
+    ).aggregate(ultimo=Max('DONUMRIG'))['ultimo'] or 0
+    Ord_dett.objects.create(
+        DOCODICE=documento,
+        DONUMRIG=ultimo_numero_riga + 1,
+        DOCODART=articolo,
+        DOQTAUM1=Decimal('1'),
+        DOPREZZO=importo_cassa,
+        DODESART=articolo.ARDESCRI,
+        DODESSUP=(
+            f'Cassa previdenziale {intestatario.NOCASSA}% '
+            f'applicata al {percentuale_documento}%'
+        ),
+        DOCODIVA=articolo.ARCODIVA,
+        DORIGCASSA=True,
+    )
 
 
 def aggiorna_castelletto_iva(documento, castelletto_iva):

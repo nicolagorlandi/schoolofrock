@@ -1,5 +1,6 @@
 from calendar import monthrange
 from datetime import date, time
+from decimal import Decimal
 
 from django import forms
 from django.core.exceptions import ValidationError
@@ -92,6 +93,31 @@ class PresenzeMensiliForm(PeriodoLezioniForm):
         )
 
 
+class IscrizioniForm(forms.Form):
+    corso = forms.ModelChoiceField(
+        label=_('Corso'),
+        queryset=Corso.objects.none(),
+        empty_label=_('Seleziona un corso'),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    causale = forms.ModelChoiceField(
+        label=_('Causale ricevuta fiscale'),
+        queryset=Causdocu.objects.none(),
+        empty_label=_('Seleziona una causale'),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['corso'].queryset = Corso.objects.order_by(
+            'descrizione',
+            'pk',
+        )
+        self.fields['causale'].queryset = Causdocu.objects.filter(
+            CDTIPDOC='RF'
+        ).order_by('CDDESCRI', 'CDCODICE')
+
+
 class FatturazioneForm(PeriodoLezioniForm):
     causale = forms.ModelChoiceField(
         label=_('Causale ricevuta fiscale'),
@@ -141,6 +167,12 @@ class FatturazioneForm(PeriodoLezioniForm):
 
 
 class CorsoForm(forms.ModelForm):
+    prezzo_iscrizione = forms.DecimalField(
+        required=False,
+        label=_('Prezzo iscrizione'),
+        widget=forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
+    )
+
     class Meta:
         model = Corso
         fields = [
@@ -152,6 +184,7 @@ class CorsoForm(forms.ModelForm):
             'insegnante',
             'articolo',
             'prezzo',
+            'prezzo_iscrizione',
             'costo',
             'data_inizio',
             'data_fine',
@@ -165,6 +198,7 @@ class CorsoForm(forms.ModelForm):
             'insegnante': _('Insegnante'),
             'articolo': _('Articolo per fatturazione'),
             'prezzo': _('Prezzo'),
+            'prezzo_iscrizione': _('Prezzo iscrizione'),
             'costo': _('Costo'),
             'data_inizio': _('Data inizio'),
             'data_fine': _('Data fine'),
@@ -191,6 +225,9 @@ class CorsoForm(forms.ModelForm):
                 },
             ),
             'prezzo': forms.NumberInput(attrs={'step': '0.50', 'min': '0'}),
+            'prezzo_iscrizione': forms.NumberInput(
+                attrs={'step': '0.01', 'min': '0'}
+            ),
             'costo': forms.NumberInput(attrs={'step': '0.50', 'min': '0'}),
             'data_inizio': forms.DateInput(
                 format='%Y-%m-%d',
@@ -211,6 +248,15 @@ class CorsoForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        if 'prezzo_iscrizione' not in self.data:
+            cleaned_data['prezzo_iscrizione'] = (
+                self.instance.prezzo_iscrizione
+                if self.instance.pk
+                else Decimal('0')
+            )
+        elif cleaned_data.get('prezzo_iscrizione') is None:
+            cleaned_data['prezzo_iscrizione'] = Decimal('0')
+
         data_inizio = cleaned_data.get('data_inizio')
         data_fine = cleaned_data.get('data_fine')
         if data_inizio and data_fine and data_fine < data_inizio:
@@ -227,9 +273,16 @@ class AlunnoForm(forms.ModelForm):
 
     class Meta:
         model = Alunno
-        fields = ['alunno', 'giorno_settimana', 'ora_inizio', 'durata_minuti']
+        fields = [
+            'alunno',
+            'prezzo',
+            'giorno_settimana',
+            'ora_inizio',
+            'durata_minuti',
+        ]
         labels = {
             'alunno': _('Alunno'),
+            'prezzo': _('Prezzo'),
             'giorno_settimana': _('Giorno'),
             'durata_minuti': _('Durata (minuti)'),
         }
@@ -237,6 +290,9 @@ class AlunnoForm(forms.ModelForm):
             'alunno': autocomplete.ModelSelect2(
                 url='corsi:alunno-autocomplete',
                 attrs={'data-placeholder': _('Cerca un alunno'), 'data-minimum-input-length': 2},
+            ),
+            'prezzo': forms.NumberInput(
+                attrs={'step': '0.01', 'min': '0'}
             ),
             'durata_minuti': forms.NumberInput(attrs={'min': '1', 'step': '1'}),
         }

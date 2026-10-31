@@ -7,21 +7,310 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth.models import Permission, User
+from django.core.cache import cache
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import reverse
 from openpyxl import load_workbook
 
 from documenti.exports import esporta_tabelle_excel
+from documenti.forms import creaDettaglioOrdineForm, creaOrdineForm
 from documenti.models import (
+    Azienda,
+    Articoli,
     Causdocu,
+    Codiciva,
     MenuItem,
     Nominativi,
     Ord_Mast,
+    Ord_dett,
     PAG_DETT,
     PAGAMENTI,
 )
 from documenti.views import nominativi, nominativi_list_url
+from documenti.services import aggiorna_riga_cassa
 from PaNet1Project import settings
+
+
+class AziendaCacheTests(SimpleTestCase):
+    cache_key = "documenti_azienda"
+
+    def setUp(self):
+        cache.delete(self.cache_key)
+
+    def tearDown(self):
+        cache.delete(self.cache_key)
+
+    def test_get_azienda_reads_from_database_once_and_caches_without_expiry(self):
+        azienda = Azienda(NOME="Test")
+        with patch.object(Azienda.objects, "order_by") as order_by:
+            order_by.return_value.first.return_value = azienda
+
+            self.assertEqual(Azienda.get_azienda(), azienda)
+            self.assertEqual(Azienda.get_azienda(), azienda)
+
+        order_by.assert_called_once_with("NOME")
+
+    def test_save_invalidates_cached_azienda(self):
+        azienda = Azienda(NOME="Test")
+        cache.set(self.cache_key, azienda, timeout=None)
+
+        with patch("django.db.models.Model.save"), patch(
+            "documenti.models.transaction.on_commit",
+            side_effect=lambda callback: callback(),
+        ):
+            azienda.save()
+
+        self.assertIsNone(cache.get(self.cache_key))
+
+
+class DocumentoFormTests(TestCase):
+    def test_edit_preserves_document_type_when_hidden_field_is_not_posted(self):
+        operator = User.objects.create_user(username="documento-form-test")
+        document = Ord_Mast.objects.create(
+            DOCODUTE=operator,
+            DOTIPDOC="FV",
+            DO_CASSA=50,
+            slug="documento-form-test",
+        )
+
+        form = creaOrdineForm(
+            data={},
+            instance=document,
+            TipoDocumentoSelezionato="FV",
+        )
+
+        self.assertIn(
+            "DOTIPDOC",
+            [field.name for field in form.hidden_fields()],
+        )
+        self.assertTrue(form.fields["DOTIPDOC"].disabled)
+        self.assertTrue(form.is_valid(), form.errors)
+        updated_document = form.save()
+
+        self.assertEqual(updated_document.DOTIPDOC, "FV")
+        self.assertEqual(updated_document.DO_CASSA, Decimal("50.00"))
+
+    def setUp(self):
+        self.iva_articolo = Codiciva.objects.create(
+            CICODICE="Q22T1",
+            CIDESCRI="IVA 22%",
+            slug="q22t1",
+        )
+        self.iva_alternativa = Codiciva.objects.create(
+            CICODICE="Q10T1",
+            CIDESCRI="IVA 10%",
+            slug="q10t1",
+        )
+        self.articolo = Articoli.objects.create(
+            ARCODICE="ART-IVA",
+            ARDESCRI="Articolo IVA",
+            ARCODIVA=self.iva_articolo,
+            slug="art-iva",
+        )
+
+    def test_detail_defaults_to_article_vat_and_accepts_a_manual_choice(self):
+        form_data = {
+            "DOCODART": self.articolo.pk,
+            "DOQTAUM1": "1",
+        }
+        form = creaDettaglioOrdineForm(data=form_data)
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["DOCODIVA"], self.iva_articolo)
+        self.assertEqual(
+            [field.name for field in form.visible_fields()][-1],
+            "DOCODIVA",
+        )
+
+        form_data["DOCODIVA"] = self.iva_alternativa.pk
+        form = creaDettaglioOrdineForm(data=form_data)
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["DOCODIVA"], self.iva_alternativa)
+
+    def test_article_lookup_returns_its_vat_code(self):
+        response = self.client.get(
+            reverse("leggiPrezzoDescrizioneArticolo"),
+            {
+                "articoloId": self.articolo.pk,
+                "name": "ord_dett_set-0-DOCODART",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["ARCODIVA"], self.iva_articolo.pk)
+
+    def test_document_totals_use_the_selected_line_vat(self):
+        operator = User.objects.create_user(username="vat-total-test")
+        causale = Causdocu.objects.create(
+            CDCODICE="QVAT1",
+            CDDESCRI="Causale IVA",
+            CDTIPDOC="FV",
+            CDQUALIT=0,
+            slug="qvat1",
+        )
+        document = Ord_Mast.objects.create(
+            DOCODUTE=operator,
+            DOCODCAU=causale,
+            DOTIPDOC="FV",
+            slug="vat-total-test",
+        )
+        Ord_dett.objects.create(
+            DOCODICE=document,
+            DOCODART=self.articolo,
+            DOCODIVA=self.iva_alternativa,
+            DOQTAUM1=1,
+            DOPREZZO=100,
+        )
+
+        riepiloghi, _ = document.totale_fattura()
+
+        self.assertEqual(len(riepiloghi), 1)
+        self.assertEqual(riepiloghi[0].codice_iva, self.iva_alternativa.pk)
+        self.assertEqual(riepiloghi[0].percentuale_iva, self.iva_alternativa.CIPERIVA)
+
+
+class RigaCassaAutomaticaTests(TestCase):
+    def setUp(self):
+        self.iva = Codiciva.objects.create(
+            CICODICE="QCAS1",
+            CIDESCRI="IVA 22%",
+            CIPERIVA=22,
+            slug="qcas1",
+        )
+        self.articolo_cassa = Articoli.objects.create(
+            ARCODICE="ART-CASSA",
+            ARDESCRI="Cassa previdenziale",
+            ARCODIVA=self.iva,
+            slug="art-cassa",
+        )
+        self.azienda = Azienda.objects.order_by("NOME").first()
+        self.azienda.AZCODCAS = self.articolo_cassa
+        self.azienda.save(update_fields=["AZCODCAS"])
+        cache.delete("documenti_azienda")
+        self.intestatario = Nominativi.objects.create(
+            NOCODICE="CASSA-CLIENTE",
+            NORAGSOC="Cliente cassa",
+            NOCASSA=4,
+        )
+        self.causale = Causdocu.objects.create(
+            CDCODICE="CAS01",
+            CDDESCRI="Fattura",
+            CDTIPDOC="FV",
+            CDQUALIT=0,
+            slug="cas01",
+        )
+        self.documento = Ord_Mast.objects.create(
+            DOCODUTE=User.objects.create_user(username="cassa-test"),
+            DOCODCAU=self.causale,
+            DOCODINT=self.intestatario,
+            DOTIPDOC="FV",
+            DO_CASSA=50,
+            slug="cassa-documento",
+        )
+        Ord_dett.objects.create(
+            DOCODICE=self.documento,
+            DONUMRIG=1,
+            DOCODART=self.articolo_cassa,
+            DOQTAUM1=1,
+            DOPREZZO=200,
+            DORIGCASSA=False,
+        )
+
+    def tearDown(self):
+        cache.delete("documenti_azienda")
+
+    def test_saves_and_recalculates_single_automatic_cassa_line(self):
+        aggiorna_riga_cassa(self.documento)
+        riga = Ord_dett.objects.get(DORIGCASSA=True)
+
+        self.assertEqual(riga.DOCODART, self.articolo_cassa)
+        self.assertEqual(riga.DOCODIVA, self.iva)
+        self.assertEqual(riga.DOPREZZO, Decimal("4.00"))
+
+        self.documento.DO_CASSA = Decimal("100")
+        aggiorna_riga_cassa(self.documento)
+        righe_cassa = Ord_dett.objects.filter(DORIGCASSA=True)
+
+        self.assertEqual(righe_cassa.count(), 1)
+        self.assertEqual(righe_cassa.get().DOPREZZO, Decimal("8.00"))
+
+    def test_removes_automatic_line_when_percentage_is_disabled(self):
+        aggiorna_riga_cassa(self.documento)
+        self.documento.DO_CASSA = Decimal("0")
+
+        aggiorna_riga_cassa(self.documento)
+
+        self.assertFalse(Ord_dett.objects.filter(DORIGCASSA=True).exists())
+
+    def test_calculates_cassa_on_the_vat_excluded_taxable_base(self):
+        self.documento.DOLORIVA = "S"
+
+        aggiorna_riga_cassa(self.documento)
+
+        self.assertEqual(
+            Ord_dett.objects.get(DORIGCASSA=True).DOPREZZO,
+            Decimal("3.28"),
+        )
+
+    def test_only_selected_document_types_receive_automatic_line(self):
+        self.documento.DOTIPDOC = "OR"
+
+        aggiorna_riga_cassa(self.documento)
+
+        self.assertFalse(Ord_dett.objects.filter(DORIGCASSA=True).exists())
+
+
+class DocumentoPrintTests(TestCase):
+    def setUp(self):
+        cache.delete("documenti_azienda")
+        self.operatore = User.objects.create_user(username="documento-print-test")
+        self.azienda = Azienda.objects.order_by("NOME").first()
+        self.azienda.NOTE = "Emittente riga uno\nEmittente riga due"
+        self.azienda.save(update_fields=["NOTE"])
+        cache.delete("documenti_azienda")
+
+    def tearDown(self):
+        cache.delete("documenti_azienda")
+
+    def _render_document(self, ciclo):
+        causale = Causdocu.objects.create(
+            CDCODICE=f"PR{ciclo}",
+            CDDESCRI="Ricevuta fiscale",
+            CD_CICLO=ciclo,
+            CDQUALIT=0,
+            slug=f"print-{ciclo.lower()}",
+        )
+        documento = Ord_Mast.objects.create(
+            DOCODUTE=self.operatore,
+            DOCODCAU=causale,
+            DONUMORD=42,
+            slug=f"print-{ciclo.lower()}-doc",
+        )
+
+        with patch("documenti.views.pdfkit.configuration"), patch(
+            "documenti.views.pdfkit.from_string",
+            return_value=b"%PDF",
+        ) as pdf_generator:
+            response = self.client.get(
+                reverse("stampaDocumento", kwargs={"pk": documento.pk})
+            )
+
+        self.assertEqual(response.status_code, 200)
+        return pdf_generator.call_args.args[0]
+
+    def test_print_uses_cause_description_and_shows_issuer_for_active_cycle(self):
+        html = self._render_document("V")
+
+        self.assertIn("<h2>Ricevuta fiscale 42</h2>", html)
+        self.assertIn("Emittente", html)
+        self.assertIn("Emittente riga uno<br>Emittente riga due", html)
+
+    def test_print_does_not_show_issuer_for_passive_cycle(self):
+        html = self._render_document("A")
+
+        self.assertIn("<h2>Ricevuta fiscale 42</h2>", html)
+        self.assertNotIn("Emittente", html)
 
 
 class EsportazioneExcelTests(SimpleTestCase):

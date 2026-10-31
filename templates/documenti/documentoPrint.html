@@ -8,6 +8,8 @@
     <meta charset="utf-8">
     <style>
         body { font-size: 12px; }
+        .emittente { border: 1px solid #ccc; padding: 8px; margin-bottom: 16px; }
+        .emittente h3 { margin-top: 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #ccc; padding: 4px; }
         th { background: #eee; }
@@ -15,7 +17,14 @@
 </head>
 <body>
 
-<h2>{% trans "Ordine" %} {{ ordine.DONUMORD }}</h2>
+{% if azienda %}
+<section class="emittente">
+    <h3>{% trans "Emittente" %}</h3>
+    <div>{{ azienda.NOTE|default_if_none:""|linebreaksbr }}</div>
+</section>
+{% endif %}
+
+<h2>{{ ordine.DOCODCAU.CDDESCRI }} {{ ordine.DONUMORD }}</h2>
 <p>{% trans "Intestatario:" %} {{ ordine.DOCODINT }}</p>
 <p>{% trans "Data:" %} {{ ordine.DODATORD }}</p>
 

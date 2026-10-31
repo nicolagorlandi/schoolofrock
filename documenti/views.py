@@ -45,6 +45,7 @@ from .filters import ArticoliFilter, Ord_MastFilter,DashboardFilter, schedaScade
 from .cart import Cart
 from .services import (
     aggiorna_castelletto_iva,
+    aggiorna_riga_cassa,
     finalizza_documento,
     ricalcola_scadenze,
 )
@@ -841,6 +842,7 @@ class DocumentoValidationMixin:
             
             result = super().form_valid(form)
             self.formset.save()
+            aggiorna_riga_cassa(self.object)
             self.scadenze_formset.save()
             self.rivadett_formset.save()
             finalizza_documento(
@@ -1038,7 +1040,7 @@ def schedascadenze(request, tipoIntestatario):
     filtro = schedaScadenzaFilters(queryset=qs,                     
                                    data=data) 
 
-    return render(request, "documenti\schedascadenze.html", {
+    return render(request, "documenti/schedascadenze.html", {
         "filter": filtro,
         "scadenze": filtro.qs,
     })
@@ -1052,6 +1054,18 @@ def salda_scadenza(request, pk):
     scad.SCPAGATA = 'S'
     scad.SCDATPAG = date.today()
     scad.save()
+
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        scadenze_documento = Scadenze.objects.filter(
+            SCCODICE=scad.SCCODICE_id
+        )
+        documento_pagato = scadenze_documento.exists() and not (
+            scadenze_documento.exclude(SCPAGATA='S').exists()
+        )
+        return JsonResponse({
+            'success': True,
+            'documento_pagato': documento_pagato,
+        })
 
     # Torna alla pagina delle scadenze
     return redirect(request.META.get('HTTP_REFERER', '/'))
@@ -1073,6 +1087,7 @@ def leggiPrezzoDescrizioneArticolo(request):
             'ARPREZZO' :articolo.ARPREZZO,
             'ARDESCRI' :articolo.ARDESCRI,
             'ARDESSUP' :articolo.ARDESSUP,
+            'ARCODIVA': articolo.ARCODIVA_id,
             'prefisso':txt
         }
     else:
@@ -1836,7 +1851,10 @@ def generate_DANEAXML() -> bytes:
         PricesIncludeVat.text = 'false'  
         # scorro nelle righe del documento..
         Rows = ET.SubElement(Document, 'Rows')                   
-        dettaglio = Ord_dett.objects.filter(DOCODICE=item.pk)
+        dettaglio = Ord_dett.objects.filter(DOCODICE=item.pk).select_related(
+            'DOCODART__ARCODIVA',
+            'DOCODIVA',
+        )
 
         for rigo in dettaglio.iterator(): 
             Row = ET.SubElement(Rows, 'Row') 
@@ -1858,7 +1876,8 @@ def generate_DANEAXML() -> bytes:
             Price.text = str(rigo.DOPREZZO)
 
             VatCode = ET.SubElement(Row, 'VatCode')                  
-            VatCode.text = rigo.DOCODART.ARCODIVA.CICODICE
+            codice_iva = rigo.DOCODIVA or rigo.DOCODART.ARCODIVA
+            VatCode.text = codice_iva.CICODICE
 
             Notes = ET.SubElement(Row, 'Notes')                  
             Notes.text = rigo.DODESSUP               
@@ -2050,16 +2069,25 @@ def fromCSVToOrder(f, request):
         return codice 
 
 def ordine_pdf(request, pk):
-    ordine = get_object_or_404(Ord_Mast, pk=pk)
+    ordine = get_object_or_404(
+        Ord_Mast.objects.select_related("DOCODCAU"),
+        pk=pk,
+    )
     dettagli = Ord_dett.objects.filter(DOCODICE=pk)
     castellettoIVA = Rivadett.objects.filter(RICODICE=pk)
     scadenze = Scadenze.objects.filter(SCCODICE=pk)
+    azienda = (
+        Azienda.get_azienda()
+        if ordine.DOCODCAU and ordine.DOCODCAU.CD_CICLO == "V"
+        else None
+    )
 
     html_string = render_to_string("documenti/documentoPrint.html", {
         "ordine": ordine,
         "dettagli": dettagli,
         "castellettoIVA": castellettoIVA,
         "scadenze": scadenze,
+        "azienda": azienda,
     })
 
     pdf_file = pdfkit.from_string(html_string, False, {

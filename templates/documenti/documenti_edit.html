@@ -63,9 +63,6 @@
         </div>
     {% endif %}
 
-
-
-
     <h1 class="h2">{{TipoDocumentoSelezionato.CDDESCRI}}</h1> 
 
 
@@ -109,6 +106,15 @@
                 {% trans "Dati Testata" %}
             </button>
         </div>
+        <div class="col-1 p-2">
+            {% if form.instance.pk %}
+                        <a class="btn btn-info fa-solid fa-print"
+                        href="{% url 'stampaDocumento' pk=form.instance.pk %}"
+                        role="button"
+                        title="{% trans 'Stampa' %}"
+                        aria-label="{% trans 'Stampa' %}"></a>   
+            {% endif %}
+        </div>
         {% if perms.documenti.Manager_Ordini and DocumentoEvaso == False %} 
         <div class="col-1 p-2">
             <button  type="submit" name="Close" class="btn btn-warning">{% trans "Conferma" %}</button>
@@ -116,16 +122,16 @@
         <div class="col-1 p-2"> 
             <a type="cancel"  href="{% url 'documenti' TipoDocumentoSelezionato=TipoDocumentoSelezionato %}" class="btn btn-secondary">{% trans "Annulla" %}</a>            
         </div>   
-        <div class="col-4 p-2"> 
+        <div class="col-3 p-2"> 
         </div>   
         {% else %}              
         <div class="col-1 p-2">
             <a class="btn btn-info " href="{% url 'documenti' TipoDocumentoSelezionato=TipoDocumentoSelezionato %}" role="button">{% trans "Elenco" %} {{TipoDocumentoSelezionato.CDDESCRI}}</a>  
         </div>
-        <div class="col-5 p-2"> 
+        <div class="col-4 p-2"> 
         </div> 
         {% endif %} 
-             
+         
     </div>
 
 
@@ -139,8 +145,8 @@
                 <th scope="col" class="text-end">{% trans "Prezzo" %}</th>
                 <th scope="col">{% trans "Descrizione" %}</th>                
                 <th scope="col">{% trans "Descrizione Supplementare" %} </th>    
-                <th scope="col" ></th>             
-                <th scope="col" class="text-end">{% trans "Elimina" %} </th>                              
+                    <th scope="col" class="text-end">{% trans "Elimina" %}</th>
+                    <th scope="col">{% trans "Codice IVA" %}</th>
                 </tr>
             </thead>
             {{ view.formset.management_form }}
@@ -166,23 +172,26 @@
                     {% endif %}
 
                     <tr>
-                        {% for field in formDtl %}
-                            <td>
-                                {{ field }}
-                                {% if field.errors %}
-                                    <div class="text-danger small">
-                                        {{ field.errors }}
-                                    </div>
-                                {% endif %}
-                            </td>
-                        {% endfor %}
+                        {% for hidden_field in formDtl.hidden_fields %}{{ hidden_field }}{% endfor %}
+                        <td>{{ formDtl.DOCODART }}{{ formDtl.DOCODART.errors }}</td>
+                        <td>{{ formDtl.DOQTAUM1 }}{{ formDtl.DOQTAUM1.errors }}</td>
+                        <td>{{ formDtl.DOPREZZO }}{{ formDtl.DOPREZZO.errors }}</td>
+                        <td>{{ formDtl.DODESART }}{{ formDtl.DODESART.errors }}</td>
+                        <td>{{ formDtl.DODESSUP }}{{ formDtl.DODESSUP.errors }}</td>
+                        <td class="text-end">{{ formDtl.DELETE }}{{ formDtl.DELETE.errors }}</td>
+                        <td>{{ formDtl.DOCODIVA }}{{ formDtl.DOCODIVA.errors }}</td>
                     </tr>
                 {% endfor %}
 
                 <tr style="display: none">
-                    {% for field in view.formset.empty_form %}                    
-                        <td>{{ field}}</td>
-                    {% endfor %}
+                    {% for hidden_field in view.formset.empty_form.hidden_fields %}{{ hidden_field }}{% endfor %}
+                    <td>{{ view.formset.empty_form.DOCODART }}</td>
+                    <td>{{ view.formset.empty_form.DOQTAUM1 }}</td>
+                    <td>{{ view.formset.empty_form.DOPREZZO }}</td>
+                    <td>{{ view.formset.empty_form.DODESART }}</td>
+                    <td>{{ view.formset.empty_form.DODESSUP }}</td>
+                    <td>{{ view.formset.empty_form.DELETE }}</td>
+                    <td>{{ view.formset.empty_form.DOCODIVA }}</td>
                 </tr>       
             </tbody>
         </table>  
@@ -201,6 +210,9 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% trans 'Chiudi' %}"></button>
             </div>
             <div class="modal-body">
+                <div class="mb-3">
+                    {{ form.DO_CASSA|bootstrap }}
+                </div>
                 <div class="mb-3">
                     {{ form.DORITPIM|bootstrap }}
                 </div>

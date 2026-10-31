@@ -230,6 +230,11 @@ PagamentiDettaglioFormSet = inlineformset_factory(
 
 # caricamento ordini!
 class creaOrdineForm(ModelForm):
+    DOTIPDOC = forms.CharField(
+        required=False,
+        disabled=True,
+        widget=forms.HiddenInput(),
+    )
 
 
     def __init__(self, *args, TipoDocumentoSelezionato=None, **kwargs):
@@ -244,7 +249,7 @@ class creaOrdineForm(ModelForm):
 
     class Meta:
         model = Ord_Mast        
-        fields = ['DONUMORD','DOALFORD','DODATORD','DOCODINT','DOCODCAU','DOCODUTE','DONOTE','SYNC_UPDATE','DOCODPAG','DORITPIM','DORITPER','DORITACC','DOTIPDOC']
+        fields = ['DONUMORD','DOALFORD','DODATORD','DOCODINT','DOCODCAU','DOCODUTE','DONOTE','SYNC_UPDATE','DOCODPAG','DO_CASSA','DORITPIM','DORITPER','DORITACC','DOTIPDOC']
         labels = {
             'DONUMORD': _('Numero'),
             'DOALFORD': _('Serie'),
@@ -256,6 +261,7 @@ class creaOrdineForm(ModelForm):
             'TotaleDocumento': _('Totale'),
             'SYNC_UPDATE': _('Inviato'),
             'DOCODPAG': _('Pagamento'),
+            'DO_CASSA': _('Percentuale cassa previdenziale'),
             'DORITPIM': _('Percentuale ritenuta su imponibile'),
             'DORITPER': _('Percentuale ritenuta d\'acconto'),
             'DORITACC': _('Importo ritenuta d\'acconto'),
@@ -265,6 +271,7 @@ class creaOrdineForm(ModelForm):
             'DODATORD':DateInput,
             'DORITPIM': forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
             'DORITPER': forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
+            'DO_CASSA': forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
             'DORITACC': forms.NumberInput(attrs={'readonly': 'readonly'}),
             'DOCODINT': autocomplete.ModelSelect2(
                             url='nominativi-autocompleteform',
@@ -279,13 +286,6 @@ class creaOrdineForm(ModelForm):
                             }),     
         }    
         widget=forms.Select(attrs={"class": "form-select select2-intestatario"})
-        # serve solo in caricamento per mantenere il valore impostato in get_initial nella update, non potendo essere cambiato possiamo
-        # ignorarlo
-        DOTIPDOC = forms.CharField(
-            required=False,
-            widget=forms.HiddenInput()
-        )
-
         DOCODCAU = forms.ModelChoiceField(label=_('Causale'),queryset=Causdocu.objects.none(), 
                                             empty_label="",
                                             required=False,
@@ -294,19 +294,32 @@ class creaOrdineForm(ModelForm):
                                                 'style': 'max-width: auto;',
                                                 'onchange': 'cambioCausale(this.value, this)'
                                             }))   
+
+    def clean_DO_CASSA(self):
+        if 'DO_CASSA' not in self.data:
+            return self.instance.DO_CASSA or 0
+        return self.cleaned_data.get('DO_CASSA') or 0
       
 # dettaglio riga documento
 class creaDettaglioOrdineForm(ModelForm):
+    DOCODIVA = forms.ModelChoiceField(
+        label=_('Codice IVA'),
+        queryset=Codiciva.objects.all().order_by('CICODICE'),
+        required=False,
+        empty_label='',
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'}),
+    )
 
     class Meta:
         model = Ord_dett        
-        fields = ['DOCODART','DOQTAUM1','DOPREZZO','DODESART','DODESSUP']
+        fields = ['DOCODART','DOQTAUM1','DOPREZZO','DODESART','DODESSUP','DOCODIVA']
         labels={
                 'DOCODART':  '',                            
                 'DOQTAUM1':  '',
                 'DOPREZZO':  '',
                 'DODESART':  '',                
                 'DODESSUP':  '',
+                'DOCODIVA': _('Codice IVA'),
 
         }
         widgets = {
@@ -329,6 +342,13 @@ class creaDettaglioOrdineForm(ModelForm):
                             }),
 
         } 
+
+    def clean_DOCODIVA(self):
+        codice_iva = self.cleaned_data.get('DOCODIVA')
+        articolo = self.cleaned_data.get('DOCODART')
+        if codice_iva is None and articolo is not None:
+            return articolo.ARCODIVA
+        return codice_iva
 
     # se la quantita non è popolato o a zero
     def clean_DOQTAUM1(self):

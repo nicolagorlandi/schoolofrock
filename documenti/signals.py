@@ -36,66 +36,6 @@ def create_default_menu(sender, **kwargs):
     if sender.name != "documenti":  
         return
 
-    # --- MENU PRINCIPALE ---
-
-    # Ordini
-    ordini, created_ordini = MenuItem.objects.get_or_create(
-        label="Ordini",
-        parent=None,
-        defaults={
-            "icon": "fa-solid fa-file-invoice",
-            "ordine": 1,
-            "visible": True,
-        },
-    )
-
-    MenuItem.objects.get_or_create(
-        label="Lista ordini",
-        parent=ordini,
-        defaults={
-            "icon": "fa-solid fa-list",
-            "ordine": 1,
-        },
-    )
-
-    MenuItem.objects.get_or_create(
-        label="Nuovo ordine",
-        parent=ordini,
-        defaults={
-            "icon": "fa-solid fa-plus",
-            "ordine": 2,
-        },
-    )
-
-    # Magazzino
-    magazzino, created_magazzino = MenuItem.objects.get_or_create(
-        label="Magazzino",
-        parent=None,
-        defaults={
-            "icon": "fa-solid fa-boxes",
-            "ordine": 2,
-            "visible": True,
-        },
-    )
-
-    MenuItem.objects.get_or_create(
-        label="Articoli",
-        parent=magazzino,
-        defaults={
-            "icon": "fa-solid fa-box",
-            "ordine": 1,
-        },
-    )
-
-    MenuItem.objects.get_or_create(
-        label="Giacenze",
-        parent=magazzino,
-        defaults={
-            "icon": "fa-solid fa-warehouse",
-            "ordine": 2,
-        },
-    )
-
     archivi, created_archivi = MenuItem.objects.get_or_create(
         label="Archivi",
         parent=None,

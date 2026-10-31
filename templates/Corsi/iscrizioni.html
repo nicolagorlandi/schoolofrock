@@ -1,0 +1,249 @@
+{% extends 'partials/base.html' %}
+{% load bootstrap %}
+{% load i18n %}
+
+{% block main %}
+<div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{% trans "Genera iscrizioni" %}</h1>
+    <a href="{% url 'corsi:elenco' %}" class="btn btn-secondary">{% trans "Torna ai corsi" %}</a>
+</div>
+
+<form method="get" class="row align-items-end g-3 mb-4">
+    <div class="col-md-5">{{ form.corso|bootstrap }}</div>
+    <div class="col-md-5">{{ form.causale|bootstrap }}</div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-info">{% trans "Visualizza iscrizioni" %}</button>
+    </div>
+</form>
+
+{% if form.errors %}
+    <div class="alert alert-danger">{% trans "Selezionare un corso e una causale di ricevuta fiscale validi." %}</div>
+{% endif %}
+
+{% if configurazione_mancante %}
+    <div class="alert alert-danger">{{ configurazione_mancante }}</div>
+{% endif %}
+
+{% if form.is_bound and form.is_valid %}
+    <h2 class="h4 mt-4">
+        {% trans "Alunni iscritti a" %} {{ form.cleaned_data.corso }}
+    </h2>
+    {% if numero_generabili %}
+    <form method="post" action="{% url 'corsi:genera-tutte-ricevute-iscrizione' %}" class="mb-3">
+        {% csrf_token %}
+        <input type="hidden" name="corso" value="{{ form.cleaned_data.corso.pk }}">
+        <input type="hidden" name="causale" value="{{ form.cleaned_data.causale.pk }}">
+        <button type="submit" class="btn btn-primary">
+            {% trans "Genera tutte le ricevute mancanti" %} ({{ numero_generabili }})
+        </button>
+    </form>
+    {% endif %}
+    {% if numero_eliminabili %}
+    <form
+        method="post"
+        action="{% url 'corsi:elimina-ricevute-iscrizione-selezionate' %}"
+        id="elimina-ricevute-iscrizione-form"
+        class="mb-3">
+        {% csrf_token %}
+        <input type="hidden" name="corso" value="{{ form.cleaned_data.corso.pk }}">
+        <input type="hidden" name="causale" value="{{ form.cleaned_data.causale.pk }}">
+        <button type="submit" class="btn btn-danger" disabled>
+            {% trans "Elimina ricevute selezionate" %}
+        </button>
+    </form>
+    {% endif %}
+
+    <div class="table-responsive">
+        <table
+            class="table table-striped table-sm align-middle"
+            id="iscrizioni-table">
+            <thead>
+                <tr>
+                    <th>
+                        {% if numero_eliminabili %}
+                            <input
+                                type="checkbox"
+                                class="form-check-input"
+                                id="seleziona-tutte-ricevute-iscrizione"
+                                aria-label="{% trans 'Seleziona tutte le ricevute' %}">
+                        {% endif %}
+                    </th>
+                    <th>{% trans "Alunno" %}</th>
+                    <th>{% trans "Prezzo iscrizione (€)" %}</th>
+                    <th>{% trans "Prezzo tessera (€)" %}</th>
+                    <th>{% trans "Totale ricevuta (€)" %}</th>
+                    <th>{% trans "Ricevuta" %}</th>
+                    <th>{% trans "Saldata" %}</th>
+                    <th>{% trans "Azione" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for riga in righe_iscrizioni %}
+                <tr>
+                    <td>
+                        {% if riga.eliminabile %}
+                            <input
+                                type="checkbox"
+                                class="form-check-input js-ricevuta-iscrizione-checkbox"
+                                name="iscrizioni_ids"
+                                value="{{ riga.iscrizione.pk }}"
+                                form="elimina-ricevute-iscrizione-form"
+                                aria-label="{% trans 'Seleziona ricevuta' %} {{ riga.documento_id }}">
+                        {% endif %}
+                    </td>
+                    <td>{{ riga.iscrizione.alunno }}</td>
+                    <td>{{ riga.iscrizione.corso.prezzo_iscrizione|floatformat:2 }}</td>
+                    <td>{% if prezzo_tessera != None %}{{ prezzo_tessera|floatformat:2 }}{% else %}—{% endif %}</td>
+                    <td>
+                        {% if riga.documento_id %}
+                            {{ riga.totale_documento|floatformat:2 }}
+                        {% elif riga.totale_documento != None %}
+                            {{ riga.totale_documento|floatformat:2 }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if riga.documento_id %}
+                            #{{ riga.documento_id }}
+                        {% elif configurazione_mancante %}
+                            <span class="text-danger">{% trans "Configurazione incompleta" %}</span>
+                        {% else %}
+                            <span class="text-warning">{% trans "Da generare" %}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if riga.documento_id %}
+                            {% if riga.pagato %}
+                                <span class="text-success">{% trans "Sì" %}</span>
+                            {% elif riga.scadenze %}
+                                <span class="text-danger">{% trans "No" %}</span>
+                            {% else %}
+                                <span class="text-warning">{% trans "Nessuna scadenza" %}</span>
+                            {% endif %}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td class="text-nowrap">
+                        {% if riga.documento_id %}
+                            {% if riga.eliminabile %}
+                            <form
+                                method="post"
+                                action="{% url 'corsi:elimina-ricevuta-iscrizione' riga.iscrizione.pk %}"
+                                class="d-inline js-elimina-ricevuta-iscrizione">
+                                {% csrf_token %}
+                                <input type="hidden" name="corso" value="{{ form.cleaned_data.corso.pk }}">
+                                <input type="hidden" name="causale" value="{{ form.cleaned_data.causale.pk }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    {% trans "Elimina ricevuta" %}
+                                </button>
+                            </form>
+                            {% endif %}
+                            <a class="btn btn-sm btn-outline-primary"
+                               href="{% url 'edit_ordine' order_id=riga.documento_id TipoDocumentoSelezionato='RF' %}">
+                                {% trans "Apri ricevuta" %}
+                            </a>
+                            <a class="btn btn-sm btn-info fa-solid fa-print"
+                               href="{% url 'stampaDocumento' pk=riga.documento_id %}"
+                               title="{% trans 'Stampa ricevuta' %}"
+                               aria-label="{% trans 'Stampa ricevuta' %}"></a>
+                            {% for scadenza in riga.scadenze_non_pagate %}
+                                <form method="post" action="{% url 'salda_scadenza' scadenza.pk %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-success">
+                                        {% trans "Salda" %}{% if riga.scadenze|length > 1 %} #{{ scadenza.SCNUMSCA }}{% endif %}
+                                    </button>
+                                </form>
+                            {% endfor %}
+                        {% elif riga.generabile %}
+                            <form method="post" action="{% url 'corsi:genera-ricevuta-iscrizione' riga.iscrizione.pk %}" class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="corso" value="{{ form.cleaned_data.corso.pk }}">
+                                <input type="hidden" name="causale" value="{{ form.cleaned_data.causale.pk }}">
+                                <button type="submit" class="btn btn-sm btn-primary">{% trans "Genera ricevuta" %}</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                    <tr><td colspan="8" class="text-center">{% trans "Nessun alunno iscritto al corso." %}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block custom_js %}
+<script>
+    const ricevuteIscrizioneTable = document.querySelector(
+        '#iscrizioni-table'
+    );
+    if (ricevuteIscrizioneTable) {
+        const eliminaForm = document.getElementById(
+            'elimina-ricevute-iscrizione-form'
+        );
+        const checkboxRicevute = ricevuteIscrizioneTable.querySelectorAll(
+            '.js-ricevuta-iscrizione-checkbox'
+        );
+        const selezionaTutte = document.getElementById(
+            'seleziona-tutte-ricevute-iscrizione'
+        );
+        if (eliminaForm) {
+            const eliminaButton = eliminaForm.querySelector(
+                'button[type="submit"]'
+            );
+            const aggiornaEliminaButton = () => {
+                eliminaButton.disabled = !Array.from(
+                    checkboxRicevute
+                ).some((checkbox) => checkbox.checked);
+            };
+            checkboxRicevute.forEach((checkbox) => {
+                checkbox.addEventListener('change', () => {
+                    if (selezionaTutte) {
+                        const selezionate = Array.from(
+                            checkboxRicevute
+                        ).filter((item) => item.checked).length;
+                        selezionaTutte.checked = (
+                            selezionate === checkboxRicevute.length
+                        );
+                        selezionaTutte.indeterminate = (
+                            selezionate > 0
+                            && selezionate < checkboxRicevute.length
+                        );
+                    }
+                    aggiornaEliminaButton();
+                });
+            });
+            if (selezionaTutte) {
+                selezionaTutte.addEventListener('change', () => {
+                    checkboxRicevute.forEach((checkbox) => {
+                        checkbox.checked = selezionaTutte.checked;
+                    });
+                    selezionaTutte.indeterminate = false;
+                    aggiornaEliminaButton();
+                });
+            }
+            aggiornaEliminaButton();
+            eliminaForm.addEventListener('submit', (event) => {
+                if (!window.confirm(
+                    '{% trans "Eliminare le ricevute selezionate e le relative scadenze?" %}'
+                )) {
+                    event.preventDefault();
+                }
+            });
+        }
+        ricevuteIscrizioneTable.addEventListener('submit', (event) => {
+            const form = event.target.closest(
+                '.js-elimina-ricevuta-iscrizione'
+            );
+            if (form && !window.confirm(
+                '{% trans "Eliminare questa ricevuta e le relative scadenze?" %}'
+            )) {
+                event.preventDefault();
+            }
+        });
+    }
+</script>
+{% endblock %}

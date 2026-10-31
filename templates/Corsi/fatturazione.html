@@ -1,6 +1,7 @@
 {% extends 'partials/base.html' %}
 {% load bootstrap %}
 {% load i18n %}
+{% load l10n %}
 
 {% block main %}
 <div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -43,21 +44,66 @@
         </button>
     </form>
     {% endif %}
+    {% if numero_ricevute_eliminabili %}
+    <form
+        method="post"
+        action="{% url 'corsi:elimina-ricevute-selezionate' %}"
+        id="elimina-ricevute-form"
+        class="mb-3">
+        {% csrf_token %}
+        <input type="hidden" name="anno" value="{{ anno }}">
+        <input type="hidden" name="mese" value="{{ mese }}">
+        <input type="hidden" name="causale" value="{{ causale.pk }}">
+        {% if form.cleaned_data.alunno %}
+            <input type="hidden" name="alunno" value="{{ form.cleaned_data.alunno.pk }}">
+        {% endif %}
+        {% if form.cleaned_data.corso %}
+            <input type="hidden" name="corso" value="{{ form.cleaned_data.corso.pk }}">
+        {% endif %}
+        <button type="submit" class="btn btn-danger">
+            {% trans "Elimina ricevute selezionate" %}
+        </button>
+    </form>
+    {% endif %}
     <div class="table-responsive">
-        <table class="table table-striped table-sm align-middle">
+        <table
+            class="table table-striped table-sm align-middle"
+            id="fatturazione-table"
+            data-paid-label="{% trans 'Pagato' %}">
             <thead>
                 <tr>
+                    <th>
+                        {% if numero_ricevute_eliminabili %}
+                            <input
+                                type="checkbox"
+                                class="form-check-input"
+                                id="seleziona-tutte-ricevute"
+                                aria-label="{% trans 'Seleziona tutte le ricevute' %}">
+                        {% endif %}
+                    </th>
                     <th>{% trans "Alunno" %}</th>
                     <th>{% trans "Corsi" %}</th>
                     <th>{% trans "Totale (€)" %}</th>
                     <th>{% trans "Totale documento (€)" %}</th>
                     <th>{% trans "Stato" %}</th>
                     <th>{% trans "Azione" %}</th>
+                    <th>{% trans "Ricevuta" %}</th>
                 </tr>
             </thead>
             <tbody>
                 {% for riga in righe_fatturazione %}
-                <tr>
+                <tr data-document-paid="{{ riga.pagato|yesno:'true,false' }}">
+                    <td>
+                        {% if riga.eliminabile %}
+                            <input
+                                type="checkbox"
+                                class="form-check-input js-ricevuta-checkbox"
+                                name="documenti_ids"
+                                value="{{ riga.documento_id }}"
+                                form="elimina-ricevute-form"
+                                aria-label="{% trans 'Seleziona ricevuta' %} {{ riga.documento_id }}">
+                        {% endif %}
+                    </td>
                     <td>{{ riga.alunno }}</td>
                     <td>
                         <ul class="list-unstyled mb-0">
@@ -81,11 +127,10 @@
                     </td>
                     <td>
                         {% if riga.documento_id %}
-                            {% trans "Fatturato" %} (#{{ riga.documento_id }})
                             {% if riga.pagato %}
-                                <br><span class="text-success">{% trans "Pagato" %}</span>
+                                <br><span class="settlement-status text-success">{% trans "Pagato" %}</span>
                             {% elif riga.scadenze %}
-                                <br><span class="text-danger">{% trans "Da saldare" %}</span>
+                                <br><span class="settlement-status text-danger">{% trans "Da saldare" %}</span>
                             {% else %}
                                 <br><span class="text-warning">{% trans "Nessuna scadenza" %}</span>
                             {% endif %}
@@ -99,22 +144,45 @@
                     </td>
                     <td>
                         {% if riga.documento_id %}
-                        <a class="btn btn-sm btn-outline-primary" href="{% url 'edit_ordine' order_id=riga.documento_id TipoDocumentoSelezionato='RF' %}">
-                            {% trans "Apri ricevuta" %}
-                        </a>
                         <a class="btn btn-sm btn-info fa-solid fa-print"
                            href="{% url 'stampaDocumento' pk=riga.documento_id %}"
                            role="button"
                            title="{% trans 'Stampa ricevuta' %}"
                            aria-label="{% trans 'Stampa ricevuta' %}"></a>
+
                         {% for scadenza in riga.scadenze_non_pagate %}
-                        <form method="post" action="{% url 'salda_scadenza' scadenza.pk %}" class="d-inline">
+                        <form method="post" action="{% url 'salda_scadenza' scadenza.pk %}" class="d-inline js-salda-scadenza" data-document-total="{{ riga.totale_documento|unlocalize }}">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-sm btn-success">
                                 {% trans "Salda" %}{% if riga.scadenze|length > 1 %} #{{ scadenza.SCNUMSCA }}{% endif %}
                             </button>
                         </form>
                         {% endfor %}
+                           
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'edit_ordine' order_id=riga.documento_id TipoDocumentoSelezionato='RF' %}">
+                            {% trans "Apri ricevuta" %}
+                        </a>
+
+                        {% if riga.eliminabile %}
+                        <form
+                            method="post"
+                            action="{% url 'corsi:elimina-ricevuta' riga.documento_id %}"
+                            class="d-inline js-elimina-ricevuta">
+                            {% csrf_token %}
+                            <input type="hidden" name="anno" value="{{ anno }}">
+                            <input type="hidden" name="mese" value="{{ mese }}">
+                            <input type="hidden" name="causale" value="{{ causale.pk }}">
+                            {% if form.cleaned_data.alunno %}
+                                <input type="hidden" name="alunno" value="{{ form.cleaned_data.alunno.pk }}">
+                            {% endif %}
+                            {% if form.cleaned_data.corso %}
+                                <input type="hidden" name="corso" value="{{ form.cleaned_data.corso.pk }}">
+                            {% endif %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                {% trans "Elimina ricevuta" %}
+                            </button>
+                        </form>
+                        {% endif %}
                         {% elif riga.generabile %}
                         <form method="post" action="{% url 'corsi:genera-ricevuta' riga.alunno.pk %}">
                             {% csrf_token %}
@@ -133,20 +201,25 @@
                         </form>
                         {% endif %}
                     </td>
+                    <td>
+                        {% if riga.documento_id %}
+                            {% trans "Fatturato" %} (#{{ riga.documento_id }})
+                        {% endif %}
+                    </td>    
                 </tr>
                 {% empty %}
-                <tr><td colspan="6" class="text-center">{% trans "Nessuna lezione nel mese selezionato." %}</td></tr>
+                <tr><td colspan="7" class="text-center">{% trans "Nessuna lezione nel mese selezionato." %}</td></tr>
                 {% endfor %}
             </tbody>
             <tfoot>
                 <tr class="table-success">
                     <th colspan="3" class="text-end">{% trans "Totale documenti pagati (€)" %}</th>
-                    <th>{{ totale_documenti_pagati|floatformat:2 }}</th>
+                    <th id="totale-documenti-pagati" data-value="{{ totale_documenti_pagati|unlocalize }}">{{ totale_documenti_pagati|floatformat:2 }}</th>
                     <td colspan="2"></td>
                 </tr>
                 <tr class="table-warning">
                     <th colspan="3" class="text-end">{% trans "Totale documenti non pagati (€)" %}</th>
-                    <th>{{ totale_documenti_non_pagati|floatformat:2 }}</th>
+                    <th id="totale-documenti-non-pagati" data-value="{{ totale_documenti_non_pagati|unlocalize }}">{{ totale_documenti_non_pagati|floatformat:2 }}</th>
                     <td colspan="2"></td>
                 </tr>
                 <tr class="table-info">
@@ -158,4 +231,156 @@
         </table>
     </div>
 {% endif %}
+{% endblock %}
+
+{% block custom_js %}
+<script>
+        const fatturazioneTable = document.getElementById('fatturazione-table');
+        if (fatturazioneTable) {
+            const bulkDeleteForm = document.getElementById(
+                'elimina-ricevute-form'
+            );
+            const receiptCheckboxes = fatturazioneTable.querySelectorAll(
+                '.js-ricevuta-checkbox'
+            );
+            const selectAllReceipts = document.getElementById(
+                'seleziona-tutte-ricevute'
+            );
+            if (bulkDeleteForm) {
+                const bulkDeleteButton = bulkDeleteForm.querySelector(
+                    'button[type="submit"]'
+                );
+                const updateBulkDeleteButton = () => {
+                    bulkDeleteButton.disabled = !Array.from(
+                        receiptCheckboxes
+                    ).some((checkbox) => checkbox.checked);
+                };
+                updateBulkDeleteButton();
+                receiptCheckboxes.forEach((checkbox) => {
+                    checkbox.addEventListener('change', () => {
+                        if (selectAllReceipts) {
+                            const selezionate = Array.from(
+                                receiptCheckboxes
+                            ).filter((item) => item.checked).length;
+                            selectAllReceipts.checked = (
+                                selezionate === receiptCheckboxes.length
+                            );
+                            selectAllReceipts.indeterminate = (
+                                selezionate > 0
+                                && selezionate < receiptCheckboxes.length
+                            );
+                        }
+                        updateBulkDeleteButton();
+                    });
+                });
+                if (selectAllReceipts) {
+                    selectAllReceipts.addEventListener('change', () => {
+                        receiptCheckboxes.forEach((checkbox) => {
+                            checkbox.checked = selectAllReceipts.checked;
+                        });
+                        selectAllReceipts.indeterminate = false;
+                        updateBulkDeleteButton();
+                    });
+                }
+                bulkDeleteForm.addEventListener('submit', (event) => {
+                    if (!window.confirm(
+                        '{% trans "Eliminare le ricevute selezionate e le relative scadenze? Le lezioni torneranno da fatturare." %}'
+                    )) {
+                        event.preventDefault();
+                    }
+                });
+            }
+            fatturazioneTable.addEventListener('submit', (event) => {
+                const form = event.target.closest('.js-elimina-ricevuta');
+                if (form && !window.confirm(
+                    '{% trans "Eliminare questa ricevuta e le relative scadenze? Le lezioni torneranno da fatturare." %}'
+                )) {
+                    event.preventDefault();
+                }
+            });
+            fatturazioneTable.addEventListener('submit', async (event) => {
+                const form = event.target.closest('.js-salda-scadenza');
+                if (!form) {
+                    return;
+                }
+
+                event.preventDefault();
+                const button = form.querySelector('button[type="submit"]');
+                button.disabled = true;
+                try {
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': form.querySelector(
+                                '[name="csrfmiddlewaretoken"]'
+                            ).value,
+                        },
+                        body: new FormData(form),
+                        credentials: 'same-origin',
+                    });
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    if (!result.success) {
+                        throw new Error('Il saldo non è stato registrato.');
+                    }
+
+                    const row = form.closest('tr');
+                    form.remove();
+                    if (result.documento_pagato && row.dataset.documentPaid !== 'true') {
+                        const totaleDocumento = Number(form.dataset.documentTotal);
+                        const totalePagato = document.getElementById(
+                            'totale-documenti-pagati'
+                        );
+                        const totaleNonPagato = document.getElementById(
+                            'totale-documenti-non-pagati'
+                        );
+                        const formatImporto = (valore) => new Intl.NumberFormat(
+                            document.documentElement.lang || 'it-IT',
+                            {minimumFractionDigits: 2, maximumFractionDigits: 2}
+                        ).format(valore);
+
+                        totalePagato.dataset.value = String(
+                            Number(totalePagato.dataset.value) + totaleDocumento
+                        );
+                        totalePagato.textContent = formatImporto(
+                            Number(totalePagato.dataset.value)
+                        );
+                        totaleNonPagato.dataset.value = String(
+                            Number(totaleNonPagato.dataset.value) - totaleDocumento
+                        );
+                        totaleNonPagato.textContent = formatImporto(
+                            Number(totaleNonPagato.dataset.value)
+                        );
+
+                        const stato = row.querySelector('.settlement-status');
+                        if (stato) {
+                            stato.textContent = fatturazioneTable.dataset.paidLabel;
+                            stato.classList.remove('text-danger');
+                            stato.classList.add('text-success');
+                        }
+                        row.dataset.documentPaid = 'true';
+                        row.querySelectorAll('.js-salda-scadenza').forEach(
+                            (formSaldo) => formSaldo.remove()
+                        );
+                    }
+                } catch (error) {
+                    button.disabled = false;
+                    let messaggio = form.parentElement.querySelector(
+                        '.settlement-error'
+                    );
+                    if (!messaggio) {
+                        messaggio = document.createElement('span');
+                        messaggio.className = 'settlement-error text-danger small ms-2';
+                        form.parentElement.appendChild(messaggio);
+                    }
+                    messaggio.textContent = '{% trans "Errore durante il saldo. Riprova." %}';
+                    console.error(error);
+                }
+            });
+        }
+</script>
 {% endblock %}
