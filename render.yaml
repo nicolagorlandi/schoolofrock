@@ -28,5 +28,9 @@ services:
         value: admin
       - key: DJANGO_SUPERUSER_EMAIL
         value: gorlandinicola@gmail.com
-
+      # Locale corretta per Render che free non carica quella italiana
+      - key: LC_ALL
+        value: C.UTF-8
+      - key: LANG
+        value: C.UTF-8
 databases:

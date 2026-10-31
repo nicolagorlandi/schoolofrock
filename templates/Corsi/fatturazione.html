@@ -128,11 +128,11 @@
                     <td>
                         {% if riga.documento_id %}
                             {% if riga.pagato %}
-                                <br><span class="settlement-status text-success">{% trans "Pagato" %}</span>
+                                <span class="settlement-status text-success">{% trans "Pagato" %}</span>
                             {% elif riga.scadenze %}
-                                <br><span class="settlement-status text-danger">{% trans "Da saldare" %}</span>
+                                <span class="settlement-status text-danger">{% trans "Da saldare" %}</span>
                             {% else %}
-                                <br><span class="text-warning">{% trans "Nessuna scadenza" %}</span>
+                                <span class="text-warning">{% trans "Nessuna scadenza" %}</span>
                             {% endif %}
                         {% elif riga.fatturazione_parziale %}
                             <span class="text-danger">{% trans "Collegamento fattura parziale: verificare le lezioni" %}</span>
