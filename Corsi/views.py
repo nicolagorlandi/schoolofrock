@@ -1074,8 +1074,20 @@ def _crea_ricevuta_alunno(
         else:
             serie = None
 
-        locale.setlocale(locale.LC_TIME, "it_IT.UTF-8")
-        mese = calendar.month_name[lezione.data.month]
+        # su render free non abbiamo lunix con caricate la lingua italiana locale.setlocale(locale.LC_TIME, "it_IT.UTF-8")
+
+        # try:
+        #     locale.setlocale(locale.LC_TIME, "C.UTF-8")
+        # except locale.Error:
+        #     locale.setlocale(locale.LC_TIME, "C")
+
+        # mese = calendar.month_name[lezione.data.month]
+        mesi = [
+            "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+            "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"
+        ]
+
+        mese = mesi[lezione.data.month - 1]
 
         documento = Ord_Mast.objects.create(
             DONUMORD=numero,
