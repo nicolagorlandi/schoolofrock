@@ -41,7 +41,7 @@ class RateizzazioneResult:
 class Rateizzazione:
     datainizio: Optional[Union[date, datetime]] = None
     importo: Decimal = Decimal('0')
-    arrotondamento: int = 0
+    arrotondamento: int = 2
     ritenuta_acconto: Decimal = Decimal('0')
     spese_in_prima_rata: bool = False
 
@@ -122,7 +122,7 @@ class Rateizzazione:
     def empty(self):
         self.datainizio = None
         self.importo = Decimal('0')
-        self.arrotondamento = 0
+        self.arrotondamento = 2
         self.ritenuta_acconto = Decimal('0')
         self.spese_in_prima_rata = False
         self.definizione.clear()

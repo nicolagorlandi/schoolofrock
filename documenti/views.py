@@ -1113,6 +1113,7 @@ def leggiintestatario(request):
     return JsonResponse({
         'DORITPIM': nominativo.NORITPIM or 0,
         'DORITPER': nominativo.NORITPER or 0,
+        'NOCODIVA': nominativo.NOCODIVA_id,
     })
 
 # elimina documento
@@ -1876,7 +1877,11 @@ def generate_DANEAXML() -> bytes:
             Price.text = str(rigo.DOPREZZO)
 
             VatCode = ET.SubElement(Row, 'VatCode')                  
-            codice_iva = rigo.DOCODIVA or rigo.DOCODART.ARCODIVA
+            codice_iva = (
+                rigo.DOCODIVA
+                or item.DOTCOIVA
+                or rigo.DOCODART.ARCODIVA
+            )
             VatCode.text = codice_iva.CICODICE
 
             Notes = ET.SubElement(Row, 'Notes')                  

@@ -9,7 +9,8 @@
             success: function (data) {
                 $( "input[name$='"+data.prefisso+"DODESART']" )[0].value=data.ARDESCRI;                
                 $( "input[name$='"+data.prefisso+"DOPREZZO']" )[0].value=data.ARPREZZO;
-                $("select[name$='"+data.prefisso+"DOCODIVA']").val(data.ARCODIVA).trigger('change');
+                var codiceIva = $('#id_DOTCOIVA').val() || data.ARCODIVA;
+                $("select[name$='"+data.prefisso+"DOCODIVA']").val(codiceIva).trigger('change');
                 // se quantita a 0 la metto a 1
                 var qta = $( "input[name$='"+data.prefisso+"DOQTAUM1']" )[0].value;
                 if (qta==="0") 
@@ -81,6 +82,9 @@
         success: function (data) {
             $('#id_DORITPIM').val(data.DORITPIM);
             $('#id_DORITPER').val(data.DORITPER);
+            if (data.NOCODIVA) {
+                $('#id_DOTCOIVA').val(data.NOCODIVA).trigger('change');
+            }
         }
     });
 });
@@ -88,4 +92,30 @@
 $("#id_DOCODINT").on("select2:clear", function () {
     $('#id_DORITPIM').val('0');
     $('#id_DORITPER').val('0');
+});
+
+$('#id_DOTCOIVA').on('change', function () {
+    var codiceIva = this.value;
+    if (!codiceIva) {
+        return;
+    }
+
+    var form = $(this).closest('form');
+    if (
+        form.data('document-edit') === true ||
+        form.data('document-edit') === 'true'
+    ) {
+        var messaggio = form.data('apply-vat-message') ||
+            'Applicare il nuovo codice IVA a tutte le righe del documento?';
+        if (!window.confirm(messaggio)) {
+            return;
+        }
+    }
+
+    $('select[name$="-DOCODIVA"]').each(function () {
+        var articoloName = this.name.replace(/DOCODIVA$/, 'DOCODART');
+        if ($('select[name="' + articoloName + '"]').val()) {
+            $(this).val(codiceIva).trigger('change');
+        }
+    });
 });

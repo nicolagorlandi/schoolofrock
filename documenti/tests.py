@@ -128,6 +128,78 @@ class DocumentoFormTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(form.cleaned_data["DOCODIVA"], self.iva_alternativa)
 
+    def test_document_form_defaults_vat_from_the_selected_customer(self):
+        operator = User.objects.create_user(username="vat-customer-test")
+        intestatario = Nominativi.objects.create(
+            NOCODICE="VAT-CLIENT",
+            NORAGSOC="Cliente con IVA predefinita",
+            NOCODIVA=self.iva_alternativa,
+        )
+        form = creaOrdineForm(
+            data={"DOCODINT": intestatario.pk},
+            instance=Ord_Mast(DOCODUTE=operator, DOTIPDOC="FV"),
+            TipoDocumentoSelezionato="FV",
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["DOTCOIVA"], self.iva_alternativa)
+
+    def test_document_save_defaults_vat_from_customer(self):
+        operator = User.objects.create_user(username="vat-customer-save-test")
+        intestatario = Nominativi.objects.create(
+            NOCODICE="VAT-SAVE-CLIENT",
+            NORAGSOC="Cliente IVA",
+            NOCODIVA=self.iva_alternativa,
+        )
+
+        document = Ord_Mast.objects.create(
+            DOCODUTE=operator,
+            DOCODINT=intestatario,
+            DOTIPDOC="FV",
+            slug="vat-customer-save-test",
+        )
+
+        self.assertEqual(document.DOTCOIVA, self.iva_alternativa)
+
+    def test_detail_defaults_to_document_vat_before_article_vat(self):
+        operator = User.objects.create_user(username="vat-line-test")
+        causale = Causdocu.objects.create(
+            CDCODICE="QVAT2",
+            CDDESCRI="Causale IVA",
+            CDTIPDOC="FV",
+            CDQUALIT=0,
+            slug="qvat2",
+        )
+        document = Ord_Mast.objects.create(
+            DOCODUTE=operator,
+            DOCODCAU=causale,
+            DOTIPDOC="FV",
+            DOTCOIVA=self.iva_alternativa,
+            slug="vat-line-test",
+        )
+        form_iniziale = creaDettaglioOrdineForm(
+            instance=Ord_dett(
+                DOCODICE=document,
+                DOCODART=self.articolo,
+            ),
+        )
+        self.assertEqual(
+            form_iniziale.initial["DOCODIVA"],
+            self.iva_alternativa,
+        )
+
+        form = creaDettaglioOrdineForm(
+            data={
+                "DOCODART": self.articolo.pk,
+                "DOQTAUM1": "1",
+            },
+            instance=Ord_dett(DOCODICE=document),
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["DOCODIVA"], self.iva_alternativa)
+        self.assertEqual(form.save().DOCODIVA, self.iva_alternativa)
+
     def test_article_lookup_returns_its_vat_code(self):
         response = self.client.get(
             reverse("leggiPrezzoDescrizioneArticolo"),
@@ -139,6 +211,21 @@ class DocumentoFormTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["ARCODIVA"], self.iva_articolo.pk)
+
+    def test_customer_lookup_returns_default_vat_code(self):
+        intestatario = Nominativi.objects.create(
+            NOCODICE="VAT-LOOKUP-CLIENT",
+            NORAGSOC="Cliente IVA",
+            NOCODIVA=self.iva_alternativa,
+        )
+
+        response = self.client.get(
+            reverse("leggiintestatario"),
+            {"nominativoId": intestatario.pk},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["NOCODIVA"], self.iva_alternativa.pk)
 
     def test_document_totals_use_the_selected_line_vat(self):
         operator = User.objects.create_user(username="vat-total-test")
@@ -168,6 +255,35 @@ class DocumentoFormTests(TestCase):
         self.assertEqual(len(riepiloghi), 1)
         self.assertEqual(riepiloghi[0].codice_iva, self.iva_alternativa.pk)
         self.assertEqual(riepiloghi[0].percentuale_iva, self.iva_alternativa.CIPERIVA)
+
+    def test_document_totals_use_header_vat_for_legacy_lines_without_vat(self):
+        operator = User.objects.create_user(username="vat-legacy-total-test")
+        causale = Causdocu.objects.create(
+            CDCODICE="QVAT3",
+            CDDESCRI="Causale IVA",
+            CDTIPDOC="FV",
+            CDQUALIT=0,
+            slug="qvat3",
+        )
+        document = Ord_Mast.objects.create(
+            DOCODUTE=operator,
+            DOCODCAU=causale,
+            DOTIPDOC="FV",
+            DOTCOIVA=self.iva_alternativa,
+            slug="vat-legacy-total-test",
+        )
+        riga = Ord_dett.objects.create(
+            DOCODICE=document,
+            DOCODART=self.articolo,
+            DOQTAUM1=1,
+            DOPREZZO=100,
+        )
+        Ord_dett.objects.filter(pk=riga.pk).update(DOCODIVA=None)
+
+        riepiloghi, _ = document.totale_fattura()
+
+        self.assertEqual(len(riepiloghi), 1)
+        self.assertEqual(riepiloghi[0].codice_iva, self.iva_alternativa.pk)
 
 
 class RigaCassaAutomaticaTests(TestCase):

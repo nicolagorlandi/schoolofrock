@@ -26,7 +26,7 @@
 
 {% block main %}
 
-  <form method="post" novalidate="">
+  <form method="post" novalidate="" data-document-edit="{% if form.instance.pk %}true{% else %}false{% endif %}" data-apply-vat-message="{% trans 'Applicare il nuovo codice IVA a tutte le righe del documento?' %}">
     {% csrf_token %}
 
     {% if form.non_field_errors %}
@@ -122,13 +122,13 @@
         <div class="col-1 p-2"> 
             <a type="cancel"  href="{% url 'documenti' TipoDocumentoSelezionato=TipoDocumentoSelezionato %}" class="btn btn-secondary">{% trans "Annulla" %}</a>            
         </div>   
-        <div class="col-3 p-2"> 
+        <div class="col-1 p-2"> 
         </div>   
         {% else %}              
         <div class="col-1 p-2">
             <a class="btn btn-info " href="{% url 'documenti' TipoDocumentoSelezionato=TipoDocumentoSelezionato %}" role="button">{% trans "Elenco" %} {{TipoDocumentoSelezionato.CDDESCRI}}</a>  
         </div>
-        <div class="col-4 p-2"> 
+        <div class="col-2 p-2"> 
         </div> 
         {% endif %} 
          
@@ -210,6 +210,9 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% trans 'Chiudi' %}"></button>
             </div>
             <div class="modal-body">
+                <div class="mb-3">
+                    {{ form.DOTCOIVA|bootstrap }}
+                </div>
                 <div class="mb-3">
                     {{ form.DO_CASSA|bootstrap }}
                 </div>

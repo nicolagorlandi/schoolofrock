@@ -25,12 +25,12 @@ def aggiorna_riga_cassa(documento):
 
     intestatario = documento.DOCODINT
     percentuale_documento = documento.DO_CASSA or Decimal('0')
+    baseImpRitenuta_documento = documento.DORITPIM or Decimal('0')
     if (
         documento.DOTIPDOC not in TIPI_DOCUMENTO_CON_CASSA
         or intestatario is None
-        or intestatario.NOCASSA is None
-        or intestatario.NOCASSA <= 0
         or percentuale_documento <= 0
+        or baseImpRitenuta_documento<=0
     ):
         return
 
@@ -48,7 +48,7 @@ def aggiorna_riga_cassa(documento):
     )
     importo_cassa = (
         base_imponibile
-        * intestatario.NOCASSA
+        * baseImpRitenuta_documento
         / Decimal('100')
         * percentuale_documento
         / Decimal('100')
@@ -70,7 +70,7 @@ def aggiorna_riga_cassa(documento):
             f'Cassa previdenziale {intestatario.NOCASSA}% '
             f'applicata al {percentuale_documento}%'
         ),
-        DOCODIVA=articolo.ARCODIVA,
+        DOCODIVA=documento.DOTCOIVA or articolo.ARCODIVA,
         DORIGCASSA=True,
     )
 

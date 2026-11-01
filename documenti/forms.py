@@ -47,7 +47,8 @@ class ClientForm(forms.ModelForm):
                 'NOCODSDI',
                 'NORITPIM',
                 'NORITPER',
-                'NOCASSA']
+                'NOCASSA',
+                'NOCODIVA']
         labels = {
             'NOCODICE': _('Codice'),
             'NOCOGNOM': _('Cognome'),
@@ -67,7 +68,8 @@ class ClientForm(forms.ModelForm):
             'NOCODSDI':_('SDI'),
             'NORITPIM':_('% Base Imp.Ritenuta'),
             'NORITPER':_('% Ritenuta Acconto'),
-            'NOCASSA':_('Cassa(%)'),          
+            'NOCASSA':_('Cassa(%)'),
+            'NOCODIVA':_('Codice IVA'),          
         }
 
 
@@ -242,14 +244,32 @@ class creaOrdineForm(ModelForm):
 
         self.fields['DORITACC'].disabled = True
         self.fields['DOCODUTE'].disabled = True
+        if (
+            not self.is_bound
+            and self.instance.DOTCOIVA_id is None
+            and self.instance.DOCODINT_id is not None
+            and self.instance.DOCODINT.NOCODIVA_id is not None
+        ):
+            self.initial['DOTCOIVA'] = self.instance.DOCODINT.NOCODIVA
         if TipoDocumentoSelezionato:
             self.fields["DOCODCAU"].queryset = Causdocu.objects.filter(
                 CDTIPDOC=TipoDocumentoSelezionato
             )
 
+    def clean(self):
+        cleaned_data = super().clean()
+        intestatario = cleaned_data.get('DOCODINT')
+        if (
+            cleaned_data.get('DOTCOIVA') is None
+            and intestatario is not None
+            and intestatario.NOCODIVA_id is not None
+        ):
+            cleaned_data['DOTCOIVA'] = intestatario.NOCODIVA
+        return cleaned_data
+
     class Meta:
         model = Ord_Mast        
-        fields = ['DONUMORD','DOALFORD','DODATORD','DOCODINT','DOCODCAU','DOCODUTE','DONOTE','SYNC_UPDATE','DOCODPAG','DO_CASSA','DORITPIM','DORITPER','DORITACC','DOTIPDOC']
+        fields = ['DONUMORD','DOALFORD','DODATORD','DOCODINT','DOCODCAU','DOCODUTE','DONOTE','SYNC_UPDATE','DOCODPAG','DO_CASSA','DORITPIM','DORITPER','DORITACC','DOTIPDOC','DOTCOIVA']
         labels = {
             'DONUMORD': _('Numero'),
             'DOALFORD': _('Serie'),
@@ -265,6 +285,7 @@ class creaOrdineForm(ModelForm):
             'DORITPIM': _('Percentuale ritenuta su imponibile'),
             'DORITPER': _('Percentuale ritenuta d\'acconto'),
             'DORITACC': _('Importo ritenuta d\'acconto'),
+            'DOTCOIVA': _('Codice IVA'),
         }
         widgets = {
             'DONOTE': Textarea(attrs={ 'rows': 2}),
@@ -343,9 +364,27 @@ class creaDettaglioOrdineForm(ModelForm):
 
         } 
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.is_bound and self.instance.DOCODIVA_id is None:
+            documento = self.instance.DOCODICE
+            articolo = self.instance.DOCODART
+            codice_iva = (
+                documento.DOTCOIVA
+                if documento is not None and documento.DOTCOIVA_id is not None
+                else articolo.ARCODIVA
+                if articolo is not None
+                else None
+            )
+            if codice_iva is not None:
+                self.initial['DOCODIVA'] = codice_iva
+
     def clean_DOCODIVA(self):
         codice_iva = self.cleaned_data.get('DOCODIVA')
         articolo = self.cleaned_data.get('DOCODART')
+        documento = self.instance.DOCODICE
+        if codice_iva is None and documento is not None and documento.DOTCOIVA_id:
+            return documento.DOTCOIVA
         if codice_iva is None and articolo is not None:
             return articolo.ARCODIVA
         return codice_iva

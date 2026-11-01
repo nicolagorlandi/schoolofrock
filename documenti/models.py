@@ -149,100 +149,6 @@ class PAG_DETT(models.Model):
             )
         ]
 
-
-# Anagrafica dei nominativi mutuata da Emporio Open (sotto insieme di campi)
-class Nominativi(models.Model):
-
-    #Basic Fields
-    NOCODICE = models.CharField( max_length=70,primary_key=True)    
-    NORAGSOC = models.CharField(null=True, blank=True, max_length=80)
-    NOINDIRI = models.CharField(null=True, blank=True, max_length=254)
-    NONUMCIV = models.CharField(null=True, blank=True, max_length=20)
-    NO_CITTA = models.CharField(null=True, blank=True, max_length=100)
-    NOPROVIN = models.CharField(null=True, blank=True, max_length=2)
-    NOINDCAP = models.CharField(null=True, blank=True, max_length=5)
-    NOTELEF1 = models.CharField(null=True, blank=True, max_length=15)
-    NOTELEF2 = models.CharField(null=True, blank=True, max_length=15)
-    NOTELEF3 = models.CharField(null=True, blank=True, max_length=15)
-    NO_EMAIL = models.CharField(null=True, blank=True, max_length=120)       
-    NOPARIVA = models.CharField(null=True, blank=True, max_length=28)       
-    NOCODFIS = models.CharField(null=True, blank=True, max_length=16)    
-    NONOTEGE = models.TextField(null=True, blank=True)
-    NO_NOME = models.CharField(null=True, blank=True, max_length=20)
-    NOCOGNOM = models.CharField(null=True, blank=True, max_length=50)
-    
-    #Utility fields
-    slug = models.SlugField()
-    NSCARDAT = models.DateTimeField(blank=True, null=True)
-    NSMODDAT = models.DateTimeField(blank=True, null=True)
-    NONAZION = models.CharField(null=True, blank=True, max_length=2)
-    NONOMPEC = models.CharField(null=True, blank=True, max_length=120)
-    NOCODSDI = models.CharField(null=True, blank=True, max_length=7)
-    # tipo di nominativo (C=Cliente, F=Fornitore)
-    NOCODNOM = models.CharField(max_length=5,default=CCATCLI, 
-        #il primo valore è quello registrato a database, il secondo quello mostrato a video  
-        choices=[
-            (CCATCLI, CCATCLI),
-            (CCATFOR, CCATFOR),
-        ])
-
-    # solo per fornitori!
-    NORITPIM = models.DecimalField(null=True, blank=True, default=0, max_digits=5, decimal_places=2) # Ritenuta d'acconto percentuale applicata all'imponibile
-    NORITPER = models.DecimalField(null=True, blank=True, default=0, max_digits=5, decimal_places=2) # Ritenuta d'acconto percentuale applicata all'imposta
-    NOCASSA = models.DecimalField(null=True, blank=True, default=0, max_digits=5, decimal_places=2) # Cassa previdenziale
- 
-    # ruolo per abilitare la modifica degli articoli!
-    class Meta:
-        ordering = ['NORAGSOC'] 
-        permissions = (("Manager_CLienti", "Manager Clienti"),)  
-
-
-    def __str__(self):
-        return '{} {} {}'.format(self.NORAGSOC or '', self.NOTELEF1 or '', self.NO_CITTA or '')
-
-
-    def get_absolute_url(self):
-        return reverse('client-detail', kwargs={'slug': self.slug})
-
-    def save(self, *args, **kwargs):
-        if self.NSMODDAT is None:
-            self.NSMODDAT = timezone.localtime(timezone.now())
-            
-        if self.NORAGSOC in (None, ''):
-            self.NORAGSOC ='{} {}'.format(self.NOCOGNOM or '', self.NO_NOME or '')
-
-        # se non ho il codice uso la descrizione seguita da un id che disambigua!
-        if self.NOCODICE in (None, ''):
-            self.NOCODICE = '{}_{}'.format(self.NORAGSOC, str(uuid4()).split('-')[4])
-
-        self.slug = slugify('{}'.format(self.NOCODICE))
-        self.NSMODDAT = timezone.localtime(timezone.now())
-        
-        super(Nominativi, self).save(*args, **kwargs)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # per gestire in fase di caricamento da Emporio Open se record inserito o modificao
-        self.nuovo = False    
-
-    # NON UTILIZZARE nominativi direttamente ma sempre filtre
-    @classmethod
-    def getClienti(cls):
-        return cls.objects.filter(NOCODNOM=CCATCLI)       
-
-    @classmethod
-    def getFornitori(cls):
-        return cls.objects.filter(NOCODNOM=CCATFOR) 
-
-    @classmethod
-    def getNominativi(cls,tipo):
-        if tipo==CCATCLI:
-            return cls.getClienti()
-        elif tipo==CCATFOR:
-            return cls.getFornitori()
-        else:
-            return cls.objects.none()  # Return an empty queryset if tipo is None or unrecognized
-
 # Anagrafica codici IVA
 class Codiciva(models.Model):
     # sui codici iva va bene usare codice IVA come chiave.
@@ -299,6 +205,102 @@ class Codiciva(models.Model):
         super().__init__(*args, **kwargs)
         # per gestire in fase di caricamento da Emporio Open se record inserito o modificao
         self.nuovo = False    
+
+# Anagrafica dei nominativi mutuata da Emporio Open (sotto insieme di campi)
+class Nominativi(models.Model):
+
+    #Basic Fields
+    NOCODICE = models.CharField( max_length=70,primary_key=True)    
+    NORAGSOC = models.CharField(null=True, blank=True, max_length=80)
+    NOINDIRI = models.CharField(null=True, blank=True, max_length=254)
+    NONUMCIV = models.CharField(null=True, blank=True, max_length=20)
+    NO_CITTA = models.CharField(null=True, blank=True, max_length=100)
+    NOPROVIN = models.CharField(null=True, blank=True, max_length=2)
+    NOINDCAP = models.CharField(null=True, blank=True, max_length=5)
+    NOTELEF1 = models.CharField(null=True, blank=True, max_length=15)
+    NOTELEF2 = models.CharField(null=True, blank=True, max_length=15)
+    NOTELEF3 = models.CharField(null=True, blank=True, max_length=15)
+    NO_EMAIL = models.CharField(null=True, blank=True, max_length=120)       
+    NOPARIVA = models.CharField(null=True, blank=True, max_length=28)       
+    NOCODFIS = models.CharField(null=True, blank=True, max_length=16)    
+    NONOTEGE = models.TextField(null=True, blank=True)
+    NO_NOME = models.CharField(null=True, blank=True, max_length=20)
+    NOCOGNOM = models.CharField(null=True, blank=True, max_length=50)
+    
+    #Utility fields
+    slug = models.SlugField()
+    NSCARDAT = models.DateTimeField(blank=True, null=True)
+    NSMODDAT = models.DateTimeField(blank=True, null=True)
+    NONAZION = models.CharField(null=True, blank=True, max_length=2)
+    NONOMPEC = models.CharField(null=True, blank=True, max_length=120)
+    NOCODSDI = models.CharField(null=True, blank=True, max_length=7)
+    # tipo di nominativo (C=Cliente, F=Fornitore)
+    NOCODNOM = models.CharField(max_length=5,default=CCATCLI, 
+        #il primo valore è quello registrato a database, il secondo quello mostrato a video  
+        choices=[
+            (CCATCLI, CCATCLI),
+            (CCATFOR, CCATFOR),
+        ])
+
+    # solo per fornitori!
+    NORITPIM = models.DecimalField(null=True, blank=True, default=0, max_digits=5, decimal_places=2) # Ritenuta d'acconto percentuale applicata all'imponibile
+    NORITPER = models.DecimalField(null=True, blank=True, default=0, max_digits=5, decimal_places=2) # Ritenuta d'acconto percentuale applicata all'imposta
+    NOCASSA = models.DecimalField(null=True, blank=True, default=0, max_digits=5, decimal_places=2) # Cassa previdenziale
+    # codice iva da applicare a tutti gli articoli se disponibile
+    NOCODIVA = models.ForeignKey(Codiciva, null=True, blank=True,on_delete=models.RESTRICT) # on_update non esiste in Django - OBBLIGATORIA
+ 
+ 
+    # ruolo per abilitare la modifica degli articoli!
+    class Meta:
+        ordering = ['NORAGSOC'] 
+        permissions = (("Manager_CLienti", "Manager Clienti"),)  
+
+
+    def __str__(self):
+        return '{} {} {}'.format(self.NORAGSOC or '', self.NOTELEF1 or '', self.NO_CITTA or '')
+
+
+    def get_absolute_url(self):
+        return reverse('client-detail', kwargs={'slug': self.slug})
+
+    def save(self, *args, **kwargs):
+        if self.NSMODDAT is None:
+            self.NSMODDAT = timezone.localtime(timezone.now())
+            
+        if self.NORAGSOC in (None, ''):
+            self.NORAGSOC ='{} {}'.format(self.NOCOGNOM or '', self.NO_NOME or '')
+
+        # se non ho il codice uso la descrizione seguita da un id che disambigua!
+        if self.NOCODICE in (None, ''):
+            self.NOCODICE = '{}_{}'.format(self.NORAGSOC, str(uuid4()).split('-')[4])
+
+        self.slug = slugify('{}'.format(self.NOCODICE))
+        self.NSMODDAT = timezone.localtime(timezone.now())
+        
+        super(Nominativi, self).save(*args, **kwargs)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # per gestire in fase di caricamento da Emporio Open se record inserito o modificao
+        self.nuovo = False    
+
+    # NON UTILIZZARE nominativi direttamente ma sempre filtre
+    @classmethod
+    def getClienti(cls):
+        return cls.objects.filter(NOCODNOM=CCATCLI)       
+
+    @classmethod
+    def getFornitori(cls):
+        return cls.objects.filter(NOCODNOM=CCATFOR) 
+
+    @classmethod
+    def getNominativi(cls,tipo):
+        if tipo==CCATCLI:
+            return cls.getClienti()
+        elif tipo==CCATFOR:
+            return cls.getFornitori()
+        else:
+            return cls.objects.none()  # Return an empty queryset if tipo is None or unrecognized
 
 
 # gruppo merceologico
@@ -697,6 +699,11 @@ class Ord_Mast(models.Model):
     )
 
     DOTIPDOC = models.CharField(null=True, blank=True, max_length=2) # tipo base documento (OR,FA,FV...)
+
+    # codice iva da applicare a tutti gli articoli se disponibile (valorizato con NOCODIVA dell'intestatario se disponibile)
+    DOTCOIVA = models.ForeignKey(Codiciva, null=True, blank=True,on_delete=models.RESTRICT) # on_update non esiste in Django - OBBLIGATORIA
+
+
     #Utility fields
     slug = models.SlugField()
 
@@ -711,6 +718,16 @@ class Ord_Mast(models.Model):
 
         # da gestire il caricamento automatico del cliente!                            
         intdaSalvare = False;
+        if (
+            self.DOTCOIVA_id is None
+            and self.DOCODINT_id is not None
+            and self.DOCODINT.NOCODIVA_id is not None
+        ):
+            self.DOTCOIVA_id = self.DOCODINT.NOCODIVA_id
+            if kwargs.get('update_fields') is not None:
+                kwargs['update_fields'] = set(kwargs['update_fields']) | {
+                    'DOTCOIVA',
+                }
         # marco il documento come da sincronizzare.
         self.SYNC_UPDATE=1
         super().save(*args, **kwargs)
@@ -748,7 +765,11 @@ class Ord_Mast(models.Model):
             if dettaglio.DOCODART is None:
                 continue
 
-            codice_iva = dettaglio.DOCODIVA or dettaglio.DOCODART.ARCODIVA
+            codice_iva = (
+                dettaglio.DOCODIVA
+                or self.DOTCOIVA
+                or dettaglio.DOCODART.ARCODIVA
+            )
             codice = codice_iva.CICODICE if codice_iva else ''
             aliquota = codice_iva.CIPERIVA if codice_iva else Decimal('0')
             valore_riga = (
@@ -966,7 +987,12 @@ class Ord_dett(models.Model):
     # al salvataggio imposto i flag di magazzzino
     def save(self, *args, **kwargs):
         if self.DOCODIVA_id is None and self.DOCODART_id is not None:
-            self.DOCODIVA_id = Articoli.objects.filter(
+            codice_iva_documento = (
+                self.DOCODICE.DOTCOIVA_id
+                if self.DOCODICE_id is not None
+                else None
+            )
+            self.DOCODIVA_id = codice_iva_documento or Articoli.objects.filter(
                 pk=self.DOCODART_id
             ).values_list('ARCODIVA_id', flat=True).first()
 
