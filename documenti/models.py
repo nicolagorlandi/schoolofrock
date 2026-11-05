@@ -736,7 +736,10 @@ class Ord_Mast(models.Model):
 
     @property
     def TotaleDocumento(self):
-        return Ord_dett.objects.filter(DOCODICE=self.DOCODICE).aggregate(totale=Sum(F('DOPREZZO')*F('DOQTAUM1')))['totale']
+        if Rivadett.objects.filter(RICODICE=self.DOCODICE).exists():
+            return Rivadett.objects.filter(RICODICE=self.DOCODICE).aggregate(totale=Sum(F('RIIMPONI')+F('RIIMPOST')))['totale']
+        else:
+            return Ord_dett.objects.filter(DOCODICE=self.DOCODICE).aggregate(totale=Sum(F('DOPREZZO')*F('DOQTAUM1')))['totale']
 
     # ritorna castelletoIVA e totaliDocumento e importo ritenute...
     def totale_fattura(self):

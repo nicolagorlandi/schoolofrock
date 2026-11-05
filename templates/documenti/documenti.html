@@ -115,7 +115,16 @@
       {% endif %}          
       <td>{{ord_mast_.DONUMORD}}/{{ord_mast_.DOALFORD}}</td>
       <td>{{ord_mast_.DODATORD|date:"SHORT_DATE_FORMAT" }}</td>
-      <td>{{ord_mast_.DOCODINT|default_if_none:""}}</td>
+      <td>
+        {{ ord_mast_.DOCODINT|default_if_none:"" }}
+        {% if perms.documenti.Manager_CLienti and ord_mast_.DOCODINT %}
+          <a class="btn btn-sm btn-outline-primary far fa-edit"
+             href="{% url 'edit_Cliente' tipo=ord_mast_.DOCODINT.NOCODNOM pk=ord_mast_.DOCODINT.pk %}"
+             role="button"
+             title="{% trans 'Apri intestatario' %}"
+             aria-label="{% trans 'Apri intestatario' %}"></a>
+        {% endif %}
+      </td>
       <td>{{ord_mast_.DONOTE|default_if_none:""}}</td>
       <td class="text-end">{{ord_mast_.TotaleDocumento|floatformat:"2g"}}</td>
       <td>{{ord_mast_.articoliDocumento}}</td>
@@ -132,4 +141,3 @@
 
 
 {% endblock %}
-

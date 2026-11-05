@@ -81,9 +81,18 @@
         <div class="col-2">
             {{ form.DODATORD|bootstrap }}
         </div>                                              
-        <div class="col-4">
+        <div class="{% if perms.documenti.Manager_CLienti and form.instance.pk and form.instance.DOCODINT %}col-3{% else %}col-4{% endif %}">
             {{ form.DOCODINT|bootstrap }}
         </div>
+        {% if perms.documenti.Manager_CLienti and form.instance.pk and form.instance.DOCODINT %}
+        <div class="col-1 p-2">
+            <a class="btn btn-outline-primary far fa-edit"
+               href="{% url 'edit_Cliente' tipo=form.instance.DOCODINT.NOCODNOM pk=form.instance.DOCODINT.pk %}"
+               role="button"
+               title="{% trans 'Apri intestatario' %}"
+               aria-label="{% trans 'Apri intestatario' %}"></a>
+        </div>
+        {% endif %}
         <div class="col-4">            
             {{ form.DONOTE|bootstrap }}
         </div>         
