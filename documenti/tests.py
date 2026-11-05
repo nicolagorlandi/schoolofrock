@@ -77,6 +77,48 @@ class SchedaScadenzaFilterTests(SimpleTestCase):
         self.assertIn("SCDATSCA", str(filters.qs.query))
 
 
+class SchedaScadenzaTotaleTests(TestCase):
+    def test_total_matches_visible_due_amounts(self):
+        user = User.objects.create_user(username="scadenze-total-test")
+        causale = Causdocu.objects.create(
+            CDCODICE="SCV",
+            CDQUALIT=0,
+            CD_CICLO="V",
+            slug="scv",
+        )
+        documento = Ord_Mast.objects.create(
+            DOCODCAU=causale,
+            DOCODUTE=user,
+            DOTIPDOC="FV",
+            slug="documento-scadenze-total-test",
+        )
+        Scadenze.objects.create(
+            SCCODICE=documento,
+            SCDATSCA="2026-11-10",
+            SCIMPSCA=Decimal("12.30"),
+            SCPAGATA="N",
+        )
+        Scadenze.objects.create(
+            SCCODICE=documento,
+            SCDATSCA="2026-11-20",
+            SCIMPSCA=Decimal("7.70"),
+            SCPAGATA="N",
+        )
+        Scadenze.objects.create(
+            SCCODICE=documento,
+            SCDATSCA="2026-11-30",
+            SCIMPSCA=Decimal("100.00"),
+            SCPAGATA="S",
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("schedascadenzeattive"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["totale_importi"], Decimal("20.00000"))
+        self.assertEqual(len(response.context["scadenze"]), 2)
+
+
 class DocumentoFormTests(TestCase):
     def test_edit_preserves_document_type_when_hidden_field_is_not_posted(self):
         operator = User.objects.create_user(username="documento-form-test")

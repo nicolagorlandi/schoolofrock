@@ -1039,10 +1039,16 @@ def schedascadenze(request, tipoIntestatario):
     # ai django_filters.FilterSet non è possibile passare parametri
     filtro = schedaScadenzaFilters(queryset=qs,                     
                                    data=data) 
+    scadenze = filtro.qs
+    totale_importi = (
+        scadenze.aggregate(totale=Sum('SCIMPSCA'))['totale']
+        or decimal.Decimal('0')
+    )
 
     return render(request, "documenti/schedascadenze.html", {
         "filter": filtro,
-        "scadenze": filtro.qs,
+        "scadenze": scadenze,
+        "totale_importi": totale_importi,
     })
 
 # salda la scadenza selezionata

@@ -115,11 +115,16 @@
         </tr>
         {% endfor %}
 
-   
     </tbody>
+    <tfoot>
+        <tr>
+            <th colspan="7" class="text-end">{% trans "Totale" %}</th>
+            <th class="text-end">{{ totale_importi|floatformat:"2g" }}</th>
+            <td></td>
+        </tr>
+    </tfoot>
 </table>
 
 
 
 {% endblock %}
-
