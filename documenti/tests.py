@@ -8,11 +8,13 @@ from unittest.mock import patch
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth.models import Permission, User
 from django.core.cache import cache
+from django.http import QueryDict
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import reverse
 from openpyxl import load_workbook
 
 from documenti.exports import esporta_tabelle_excel
+from documenti.filters import schedaScadenzaFilters
 from documenti.forms import creaDettaglioOrdineForm, creaOrdineForm
 from documenti.models import (
     Azienda,
@@ -25,6 +27,7 @@ from documenti.models import (
     Ord_dett,
     PAG_DETT,
     PAGAMENTI,
+    Scadenze,
 )
 from documenti.views import nominativi, nominativi_list_url
 from documenti.services import aggiorna_riga_cassa
@@ -61,6 +64,17 @@ class AziendaCacheTests(SimpleTestCase):
             azienda.save()
 
         self.assertIsNone(cache.get(self.cache_key))
+
+
+class SchedaScadenzaFilterTests(SimpleTestCase):
+    def test_due_date_filter_uses_scadenza_date_and_keeps_existing_parameter(self):
+        filters = schedaScadenzaFilters(
+            data=QueryDict("SCCODICE__SCDATSCA=today"),
+            queryset=Scadenze.objects.all(),
+        )
+
+        self.assertTrue(filters.is_valid())
+        self.assertIn("SCDATSCA", str(filters.qs.query))
 
 
 class DocumentoFormTests(TestCase):

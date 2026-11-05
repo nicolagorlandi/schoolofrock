@@ -2,6 +2,7 @@
 {% load static %}
 {% load bootstrap %}
 {% load i18n %}
+{% load django_bootstrap5 %}
 
 {% block css %}
 {% endblock %}
@@ -10,12 +11,33 @@
 {{ form.media }}
 <h2>Scheda Scadenze</h2>
 
-<div class="card p-3 mb-4">
-    <form method="get">
-        {{ filter.form.media }}
-        {{ filter.form.as_p }}
-        <button class="btn btn-primary">Cerca</button>
-    </form>
+<div class="card mb-3">
+
+    <div class="card-header">
+        <a class="btn btn-link fs-4 text-decoration-none" 
+        data-bs-toggle="collapse" 
+        href="#filterCollapse">
+            Filtri
+        </a>
+    </div>
+    <div class="collapse" id="filterCollapse">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+
+            {% for field in filter.form %}
+                <div class="col-md-6">
+                    {% bootstrap_field field %}
+                </div>
+            {% endfor %}
+
+            <div class="col-3">
+                <button class="btn btn-primary">Filtra</button>
+            </div>
+
+            </form>
+        </div>
+    </div>
+
 </div>
 
 <table class="table table-striped table-bordered">

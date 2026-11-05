@@ -137,7 +137,10 @@ class Ord_MastFilter(django_filters.FilterSet):
 class schedaScadenzaFilters(django_filters.FilterSet):
 
     # Filtri sul modello collegato ScadenzaPagamento
-    SCCODICE__SCDATSCA = k6DateRangeFilter(label=_("Data Scadenza"))
+    SCCODICE__SCDATSCA = k6DateRangeFilter(
+        field_name="SCDATSCA",
+        label=_("Data Scadenza"),
+    )
 
     SCCODICE__DODATORD = k6DateRangeFilter(label=_("Data Documento"))
         
@@ -190,6 +193,11 @@ class schedaScadenzaFilters(django_filters.FilterSet):
 
         return queryset   
 
+    importo_scadenza = django_filters.RangeFilter(
+        field_name="SCIMPSCA",
+        label="Importo scadenza (range)"
+    )
+
     pagata = django_filters.ChoiceFilter(
         field_name="SCPAGATA",
         choices=[
@@ -198,11 +206,6 @@ class schedaScadenzaFilters(django_filters.FilterSet):
         ],
         label="Scadenza pagata",
         empty_label=_("Tutte"),
-    )
-
-    importo_scadenza = django_filters.RangeFilter(
-        field_name="SCIMPSCA",
-        label="Importo scadenza (range)"
     )
 
     class Meta:
