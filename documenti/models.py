@@ -884,8 +884,10 @@ class Ord_Mast(models.Model):
     # booleano true evaso!
     @property
     def DocumentoEvaso(self):
-        evaso = Ord_dett.objects.filter(DOCODICE=self.DOCODICE).aggregate(evasi=Sum(F('DOFLEVAS')))['evasi']
-        return evaso is not None and evaso>0        
+        return Ord_dett.objects.filter(
+            DOCODICE=self.DOCODICE,
+            DOFLEVAS__gt=0
+        ).exists()      
 
     # chiave del documento che ha evaso
     @property
